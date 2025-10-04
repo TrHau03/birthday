@@ -1676,19 +1676,19 @@ function App() {
       >
         <div
           className="birthday-ring ring-outer"
-          data-text="Happy Birthday Phi • Happy Birthday Phi • Happy Birthday Phi • Happy Birthday Phi •"
+          data-text="Happy Birthday to Phi • Happy Birthday to Phi • Happy Birthday to Phi • "
           data-speed="-7.5"
           data-spacing="1.08"
         />
         <div
           className="birthday-ring ring-middle"
-          data-text="Happy Birthday Phi • Feliz Cumpleaños Phi • Joyeux Anniversaire Phi •"
+          data-text="Happy Birthday to Phi • Feliz Cumpleaños Phi • Joyeux Anniversaire Phi •"
           data-speed="6.2"
           data-spacing="1.04"
         />
         <div
           className="birthday-ring ring-inner"
-          data-text="Happy Birthday Phi • Chuc Mung Sinh Nhat Phi • Selamat Ulang Tahun Phi •"
+          data-text="Happy Birthday to Phi • Chuc Mung Sinh Nhat Phi • Selamat Ulang Tahun Phi •"
           data-speed="-6.8"
           data-spacing="1"
         />
