@@ -1,38 +1,537 @@
-.App {
-  text-align: center;
+@import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;600&display=swap");
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.App-logo {
-  height: 40vmin;
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  background: linear-gradient(180deg, #1a0d1a 0%, #2b0f2b 100%);
+  color: #ffccff;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: "";
+  position: absolute;
+  border: 6px solid #ff99cc;
+  inset: 1rem;
+  z-index: 100;
+  pointer-events: none;
+  border-radius: 20px;
+  box-shadow: 0 0 20px rgba(255, 153, 204, 0.5);
+}
+
+.App {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  font-family: "Dancing Script", "Parisienne", cursive;
+}
+
+.webgl {
+  position: fixed;
+  width: 100vw;
+  height: 100vh;
+  top: 0;
+  left: 0;
+  outline: none;
+}
+
+.second-canvas {
+  z-index: 200;
+  opacity: 0;
+  animation: canvasFadeIn 2s ease-in forwards;
+  cursor: grab;
+}
+
+.second-canvas:active {
+  cursor: grabbing;
+}
+
+@keyframes canvasFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.h1text {
+  position: absolute;
+  top: 8vh;
+  left: 2rem;
+  right: 2rem;
+  text-align: center;
+  font-weight: 400;
+  font-size: max(3rem, 2vh);
+  text-shadow: 0 0 10px rgba(255, 153, 204, 0.7);
+  opacity: 0;
+  animation: fadeIn 2s ease-in forwards 1s, textGlow 8s ease-in-out infinite 2s;
+  z-index: 110;
+}
+
+.birthday-rings {
+  --ring-offset-x: 0px;
+  --ring-offset-y: 18vh;
+  position: absolute;
+  left: calc(50% + var(--ring-offset-x));
+  top: calc(50% + var(--ring-offset-y));
+  width: clamp(260px, 48vw, 620px);
+  height: clamp(260px, 48vw, 620px);
+  transform: translate(-50%, -50%);
+  transform-style: preserve-3d;
+  pointer-events: none;
+  filter: drop-shadow(0 0 10px rgba(255, 153, 204, 0.55))
+    drop-shadow(0 0 24px rgba(255, 230, 255, 0.4));
+  animation: ringFloat 12s ease-in-out infinite;
+  z-index: 105;
+}
+
+.birthday-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  transform-origin: center;
+  transform: translate(-50%, -50%) translateY(var(--offset-y, 0))
+    rotateX(var(--tilt, 68deg)) rotateZ(0deg) scale(var(--scale, 1));
+  animation: ringFade 1.2s ease forwards var(--delay, 1.2s);
+  opacity: 0;
+  mix-blend-mode: screen;
+  --opacity: 0.85;
   pointer-events: none;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+.birthday-ring .ring-letter {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: 0 0;
+  font-weight: 600;
+  color: #ffeefc;
+  font-size: clamp(0.95rem, 1.9vw, 2rem);
+  letter-spacing: 0.08em;
+  text-transform: none;
+  pointer-events: none;
+  white-space: pre;
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+.ring-outer {
+  --scale: 1.05;
+  --offset-y: -1.8vh;
+  --duration: 28s;
+  --delay: 1.3s;
+  --opacity: 0.9;
+}
+
+.ring-outer .ring-letter {
+  font-size: clamp(1.2rem, 2.6vw, 2.4rem);
+}
+
+.ring-middle {
+  --scale: 0.85;
+  --offset-y: 0.6vh;
+  --duration: 24s;
+  --delay: 1.5s;
+  --opacity: 0.82;
+}
+
+.ring-inner {
+  --scale: 0.68;
+  --offset-y: 2.4vh;
+  --duration: 20s;
+  --delay: 1.7s;
+  --opacity: 0.78;
+}
+
+.ring-inner .ring-letter {
+  font-size: clamp(0.95rem, 2vw, 2rem);
+}
+
+.ring-core {
+  --scale: 0.5;
+  --offset-y: 3.6vh;
+  --duration: 16s;
+  --delay: 1.9s;
+  --opacity: 0.72;
+}
+
+.ring-core .ring-letter {
+  font-size: clamp(0.9rem, 1.8vw, 1.8rem);
+}
+
+.audio-embed {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(2vh, 5vw, 4vh);
+  margin: 0 auto;
+  width: clamp(240px, 60vw, 520px);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  gap: 0.25rem;
+  z-index: 120;
+  text-align: center;
 }
 
-.App-link {
-  color: #61dafb;
+.audio-player {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  opacity: 0;
+  pointer-events: none;
 }
 
-@keyframes App-logo-spin {
+.audio-credit {
+  font-weight: 500;
+  font-size: clamp(1rem, 2.2vw, 1.6rem);
+  color: rgba(255, 255, 255, 0.82);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.audio-credit:hover,
+.audio-credit:focus {
+  color: #ff99cc;
+}
+
+.celebration-toast {
+  position: fixed;
+  bottom: clamp(3vh, 8vw, 5vh);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(92vw, 420px);
+  padding: 1.1rem 1.35rem;
+  border-radius: 18px;
+  background: rgba(46, 16, 58, 0.9);
+  border: 1px solid rgba(255, 153, 204, 0.55);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  z-index: 190;
+  animation: toastPop 0.45s ease forwards, toastFloat 7.5s ease-in-out infinite;
+  animation-delay: 0s, 0.45s;
+  animation-fill-mode: forwards, both;
+}
+
+.celebration-content {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.celebration-icon {
+  font-size: clamp(1.4rem, 3.4vw, 1.9rem);
+  filter: drop-shadow(0 2px 8px rgba(255, 204, 255, 0.65));
+}
+
+.celebration-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: #ffeefc;
+  text-align: left;
+}
+
+.celebration-title {
+  font-size: clamp(1.05rem, 2.6vw, 1.35rem);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.celebration-subtitle {
+  font-size: clamp(0.9rem, 2.2vw, 1.1rem);
+  line-height: 1.45;
+  color: rgba(255, 238, 252, 0.85);
+}
+
+@keyframes toastPop {
   from {
-    transform: rotate(0deg);
+    opacity: 0;
+    transform: translate(-50%, 20px);
   }
   to {
-    transform: rotate(360deg);
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes toastFloat {
+  0%,
+  100% {
+    transform: translate(-50%, 0);
+  }
+  50% {
+    transform: translate(-50%, -6px);
+  }
+}
+
+.popup-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 6, 26, 0.6);
+  backdrop-filter: blur(6px);
+  z-index: 180;
+}
+
+.popup-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: clamp(260px, 70vw, 420px);
+  max-width: calc(100vw - 4rem);
+  max-height: calc(100vh - 4rem);
+  padding: 1.8rem 1.6rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 153, 204, 0.45);
+  background: rgba(44, 20, 54, 0.92);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  text-align: center;
+  color: #ffeefc;
+  animation: popupFade 0.42s ease forwards;
+  /* Ensure popup stays within viewport bounds */
+  min-width: min(260px, 90vw);
+  /* Prevent content overflow */
+  overflow: hidden;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  /* Center on heart position */
+  z-index: 185;
+}
+
+.popup-title {
+  font-size: clamp(1.1rem, 2.2vw, 1.6rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.popup-subtitle {
+  font-size: clamp(0.95rem, 1.8vw, 1.2rem);
+  color: rgba(255, 238, 252, 0.85);
+  line-height: 1.55;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.popup-subtle {
+  font-size: clamp(0.9rem, 1.7vw, 1.1rem);
+  color: rgba(255, 238, 252, 0.78);
+  line-height: 1.55;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.popup-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+}
+
+.popup-button {
+  border: none;
+  border-radius: 999px;
+  padding: 0.55rem 1.3rem;
+  font-family: "Dancing Script", "Parisienne", cursive;
+  font-size: clamp(1rem, 1.9vw, 1.35rem);
+  background: rgba(255, 204, 255, 0.16);
+  color: #ffeefc;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.popup-button.primary {
+  background: linear-gradient(130deg, #ff66cc, #ff99ff);
+  color: #2b0f2b;
+  box-shadow: 0 8px 20px rgba(255, 102, 204, 0.35);
+}
+
+.popup-button:hover,
+.popup-button:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(255, 153, 204, 0.35);
+}
+
+.popup-button:focus-visible {
+  outline: 2px solid rgba(255, 204, 255, 0.9);
+  outline-offset: 4px;
+}
+
+.popup-button.primary:hover,
+.popup-button.primary:focus-visible {
+  background: linear-gradient(130deg, #ff55c0, #ffb3ff);
+}
+
+@keyframes popupFade {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) translateY(0) scale(1);
+  }
+}
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ringFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: var(--opacity, 0.9);
+  }
+}
+
+@keyframes textGlow {
+  0%,
+  100% {
+    text-shadow: 0 0 10px rgba(255, 153, 204, 0.7);
+  }
+  50% {
+    text-shadow: 0 0 28px rgba(255, 230, 255, 0.9);
+  }
+}
+
+@keyframes ringFloat {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translateY(0);
+  }
+  50% {
+    transform: translate(-50%, -50%) translateY(1.6vh) scale(1.02);
+  }
+}
+
+@media (max-width: 600px) {
+  body::before {
+    inset: 0.5rem;
+    border-width: 3px;
+    border-radius: 16px;
+  }
+
+  .h1text {
+    top: 6vh;
+    font-size: clamp(2rem, 6.4vw, 3rem);
+  }
+
+  .birthday-rings {
+    width: 86vw;
+    height: 86vw;
+  }
+
+  .birthday-ring {
+    --tilt: 60deg;
+  }
+
+  .birthday-ring .ring-letter {
+    font-size: clamp(0.95rem, 4.8vw, 2rem);
+    letter-spacing: 0.08em;
+  }
+
+  .ring-outer .ring-letter {
+    font-size: clamp(1.2rem, 5.6vw, 2.3rem);
+  }
+
+  .ring-middle .ring-letter {
+    font-size: clamp(1.05rem, 5.2vw, 2.1rem);
+  }
+
+  .ring-inner .ring-letter {
+    font-size: clamp(1rem, 5vw, 1.9rem);
+  }
+
+  .ring-core .ring-letter {
+    font-size: clamp(0.95rem, 4.6vw, 1.7rem);
+  }
+
+  .audio-embed {
+    width: clamp(220px, 84vw, 420px);
+  }
+
+  .audio-player {
+    width: 1px;
+    height: 1px;
+  }
+
+  .popup-card {
+    width: clamp(230px, 85vw, 340px);
+    max-width: calc(100vw - 3rem);
+    max-height: calc(100vh - 3rem);
+    padding: 1.4rem 1.2rem;
+    min-width: min(230px, 85vw);
+  }
+
+  .popup-actions {
+    gap: 0.5rem;
+  }
+
+  .celebration-toast {
+    bottom: clamp(2vh, 6vw, 3.5vh);
+    width: min(94vw, 360px);
+    padding: 0.95rem 1.1rem;
+  }
+
+  .celebration-content {
+    gap: 0.65rem;
+  }
+
+  .celebration-title {
+    font-size: clamp(1rem, 4.4vw, 1.2rem);
+  }
+
+  .celebration-subtitle {
+    font-size: clamp(0.85rem, 4vw, 1rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .birthday-rings {
+    animation: none;
+  }
+
+  .h1text {
+    animation: fadeIn 2s ease-in forwards 1s;
+  }
+
+  .popup-card {
+    animation: none;
+  }
+
+  .popup-button {
+    transition: none;
+  }
+
+  .celebration-toast {
+    animation: none;
   }
 }
