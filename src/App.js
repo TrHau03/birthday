@@ -101,709 +101,707 @@ void main() {
 }
 `;
 
+
 class BirthdayCake {
   constructor({ canvas }) {
     this.canvas = canvas;
-    this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x1a0d1a);
-    this.clock = new THREE.Clock();
+    this.ctx = this.canvas.getContext("2d");
+    this.pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    this.width = 0;
+    this.height = 0;
+    this.centerX = 0;
+    this.centerY = 0;
+    this.cakeMetrics = null;
 
-    this.width = window.innerWidth;
-    this.height = window.innerHeight;
-    this.aspectRatio = this.width / this.height;
+    this.time = 0;
+    this.lastTime = 0;
 
-    this.camera = new THREE.PerspectiveCamera(75, this.aspectRatio, 0.1, 100);
-    this.camera.position.set(0, 0, 8);
+    this.confetti = [];
+    this.sparkles = [];
+    this.orbiters = [];
+    this.pointerBursts = [];
+    this.sprinkles = [];
+    this.candleFlickerSeeds = [];
 
-    this.renderer = new THREE.WebGLRenderer({
-      canvas: this.canvas,
-      antialias: true,
+    this.mouse = { x: 0, y: 0, isInside: false };
+    this.lastPointerBurst = 0;
+
+    this.cakePulse = { scale: 1 };
+    this.glowPulse = { strength: 0.6 };
+
+    gsap.to(this.cakePulse, {
+      scale: 1.05,
+      duration: 1.6,
+      yoyo: true,
+      repeat: -1,
+      ease: "sine.inOut",
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setSize(this.width, this.height);
 
-    // Mouse interaction variables
-    this.mouseX = 0;
-    this.mouseY = 0;
-    this.targetRotationX = 0;
-    this.targetRotationY = 0;
-    this.rotationX = 0;
-    this.rotationY = 0;
-    this.isMouseDown = false;
-    this.mouseDownX = 0;
-    this.mouseDownY = 0;
+    gsap.to(this.glowPulse, {
+      strength: 1,
+      duration: 2.4,
+      yoyo: true,
+      repeat: -1,
+      ease: "sine.inOut",
+    });
 
-    this.createCake();
-    this.addLighting();
-    this.addConfetti();
-    this.addSparkles();
-
+    this.handleResize = this.handleResize.bind(this);
     this.loop = this.loop.bind(this);
-    this.onResize = this.onResize.bind(this);
-    this.onMouseMove = this.onMouseMove.bind(this);
-    this.onMouseDown = this.onMouseDown.bind(this);
-    this.onMouseUp = this.onMouseUp.bind(this);
-    this.onTouchStart = this.onTouchStart.bind(this);
+    this.onPointerMove = this.onPointerMove.bind(this);
+    this.onPointerLeave = this.onPointerLeave.bind(this);
+    this.onPointerDown = this.onPointerDown.bind(this);
     this.onTouchMove = this.onTouchMove.bind(this);
-    this.onTouchEnd = this.onTouchEnd.bind(this);
 
-    window.addEventListener("resize", this.onResize);
-    window.addEventListener("mousemove", this.onMouseMove);
-    window.addEventListener("mousedown", this.onMouseDown);
-    window.addEventListener("mouseup", this.onMouseUp);
-    window.addEventListener("touchstart", this.onTouchStart);
-    window.addEventListener("touchmove", this.onTouchMove);
-    window.addEventListener("touchend", this.onTouchEnd);
+    this.handleResize();
+    this.seedElements();
+
+    window.addEventListener("resize", this.handleResize);
+    this.canvas.addEventListener("pointermove", this.onPointerMove);
+    this.canvas.addEventListener("pointerleave", this.onPointerLeave);
+    this.canvas.addEventListener("pointerdown", this.onPointerDown);
+    this.canvas.addEventListener("touchmove", this.onTouchMove, { passive: false });
 
     this.disposed = false;
     this.loopId = requestAnimationFrame(this.loop);
   }
 
-  createCake() {
-    // Create cake base with gradient effect
-    const cakeGeometry = new THREE.CylinderGeometry(2, 2.2, 1.5, 32);
-    const cakeMaterial = new THREE.MeshLambertMaterial({
-      color: 0xffe6f0,
-      transparent: true,
-      opacity: 0.9,
-    });
-    this.cake = new THREE.Mesh(cakeGeometry, cakeMaterial);
-    this.cake.position.y = -1;
-
-    // Create second layer with different color
-    const secondLayerGeometry = new THREE.CylinderGeometry(1.5, 1.7, 1.2, 32);
-    const secondLayerMaterial = new THREE.MeshLambertMaterial({
-      color: 0xffb3e6,
-      transparent: true,
-      opacity: 0.95,
-    });
-    this.secondLayer = new THREE.Mesh(secondLayerGeometry, secondLayerMaterial);
-    this.secondLayer.position.y = 0.1;
-
-    // Create top layer with vibrant color
-    const topLayerGeometry = new THREE.CylinderGeometry(1, 1.2, 1, 32);
-    const topLayerMaterial = new THREE.MeshLambertMaterial({
-      color: 0xff99cc,
-      transparent: true,
-      opacity: 0.95,
-    });
-    this.topLayer = new THREE.Mesh(topLayerGeometry, topLayerMaterial);
-    this.topLayer.position.y = 1.2;
-
-    // Create detailed candles
-    this.candles = [];
-    const candleCount = 10; // More candles
-    for (let i = 0; i < candleCount; i++) {
-      // Create candle base
-      const candleGeometry = new THREE.CylinderGeometry(0.04, 0.05, 0.9, 8);
-      const candleMaterial = new THREE.MeshLambertMaterial({
-        color: new THREE.Color().setHSL(i / candleCount, 0.8, 0.7),
-      });
-      const candle = new THREE.Mesh(candleGeometry, candleMaterial);
-
-      // Create candle wick
-      const wickGeometry = new THREE.CylinderGeometry(0.005, 0.005, 0.1, 4);
-      const wickMaterial = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
-      const wick = new THREE.Mesh(wickGeometry, wickMaterial);
-      wick.position.y = 0.5;
-      candle.add(wick);
-
-      const angle = (i / candleCount) * Math.PI * 2;
-      candle.position.x = Math.cos(angle) * 0.9;
-      candle.position.z = Math.sin(angle) * 0.9;
-      candle.position.y = 2.2;
-
-      // Create enhanced flame
-      const flameGeometry = new THREE.SphereGeometry(0.1, 8, 6);
-      const flameMaterial = new THREE.MeshBasicMaterial({
-        color: new THREE.Color().setHSL(0.1, 1, 0.6),
-        transparent: true,
-        opacity: 0.9,
-      });
-      const flame = new THREE.Mesh(flameGeometry, flameMaterial);
-      flame.position.y = 0.6;
-      flame.scale.set(1, 1.5, 1); // Make flame taller
-      candle.add(flame);
-
-      // Create flame glow
-      const glowGeometry = new THREE.SphereGeometry(0.15, 8, 6);
-      const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff8800,
-        transparent: true,
-        opacity: 0.3,
-      });
-      const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-      glow.position.y = 0.6;
-      candle.add(glow);
-
-      this.candles.push({ candle, flame, glow, wick });
-    }
-
-    // Create detailed decorations
-    this.createDetailedDecorations();
-  }
-
-  createDetailedDecorations() {
-    // Create multiple icing layers
-    this.createIcing();
-    this.createSprinkles();
-    this.createFruits();
-    this.createFlowers();
-    this.createStars();
-  }
-
-  createIcing() {
-    // Create swirls around the cake
-    const icingGeometry = new THREE.TorusGeometry(1.3, 0.1, 8, 100);
-    const icingMaterial = new THREE.MeshLambertMaterial({ color: 0xffccff });
-    this.icing = new THREE.Mesh(icingGeometry, icingMaterial);
-    this.icing.position.y = 0.6;
-    this.icing.rotation.x = Math.PI / 2;
-    this.scene.add(this.icing);
-
-    // Create top icing with multiple rings
-    const topIcingGeometry = new THREE.TorusGeometry(0.8, 0.08, 8, 100);
-    const topIcingMaterial = new THREE.MeshLambertMaterial({ color: 0xff99ff });
-    this.topIcing = new THREE.Mesh(topIcingGeometry, topIcingMaterial);
-    this.topIcing.position.y = 1.8;
-    this.topIcing.rotation.x = Math.PI / 2;
-
-    // Create additional icing details
-    const innerIcingGeometry = new THREE.TorusGeometry(0.6, 0.06, 8, 100);
-    const innerIcingMaterial = new THREE.MeshLambertMaterial({
-      color: 0xffccff,
-    });
-    this.innerIcing = new THREE.Mesh(innerIcingGeometry, innerIcingMaterial);
-    this.innerIcing.position.y = 1.9;
-    this.innerIcing.rotation.x = Math.PI / 2;
-
-    // Create bottom icing border
-    const bottomIcingGeometry = new THREE.TorusGeometry(2.3, 0.12, 8, 100);
-    const bottomIcingMaterial = new THREE.MeshLambertMaterial({
-      color: 0xffb3e6,
-    });
-    this.bottomIcing = new THREE.Mesh(bottomIcingGeometry, bottomIcingMaterial);
-    this.bottomIcing.position.y = -0.25;
-    this.bottomIcing.rotation.x = Math.PI / 2;
-
-    // Create a group for the entire cake to enable rotation
-    this.cakeGroup = new THREE.Group();
-    this.cakeGroup.add(this.cake);
-    this.cakeGroup.add(this.secondLayer);
-    this.cakeGroup.add(this.topLayer);
-    this.cakeGroup.add(this.icing);
-    this.cakeGroup.add(this.topIcing);
-    this.cakeGroup.add(this.innerIcing);
-    this.cakeGroup.add(this.bottomIcing);
-
-    // Add candles to the group
-    this.candles.forEach(({ candle }) => {
-      this.cakeGroup.add(candle);
-    });
-
-    // Add decorations to the group (check if arrays exist first)
-    if (this.sprinkles) {
-      this.sprinkles.forEach((sprinkle) => this.cakeGroup.add(sprinkle));
-    }
-    if (this.fruits) {
-      this.fruits.forEach((fruit) => this.cakeGroup.add(fruit));
-    }
-    if (this.flowers) {
-      this.flowers.forEach((flower) => this.cakeGroup.add(flower));
-    }
-    if (this.stars) {
-      this.stars.forEach((star) => this.cakeGroup.add(star));
-    }
-
-    this.scene.add(this.cakeGroup);
-  }
-
-  createSprinkles() {
-    this.sprinkles = [];
-    const sprinkleCount = 30;
-
-    for (let i = 0; i < sprinkleCount; i++) {
-      // Create colorful sprinkles
-      const sprinkleGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.1, 6);
-      const sprinkleColors = [
-        0xff6b6b, 0x4ecdc4, 0x45b7d1, 0xffa07a, 0x98d8c8, 0xf7dc6f,
-      ];
-      const sprinkleMaterial = new THREE.MeshBasicMaterial({
-        color: sprinkleColors[i % sprinkleColors.length],
-      });
-      const sprinkle = new THREE.Mesh(sprinkleGeometry, sprinkleMaterial);
-
-      // Position sprinkles randomly on cake surfaces
-      const layer = Math.floor(Math.random() * 3);
-      let y, radius;
-      switch (layer) {
-        case 0: // Bottom layer
-          y = -0.25;
-          radius = 1.8 + Math.random() * 0.4;
-          break;
-        case 1: // Middle layer
-          y = 0.7;
-          radius = 1.2 + Math.random() * 0.5;
-          break;
-        case 2: // Top layer
-          y = 1.7;
-          radius = 0.8 + Math.random() * 0.4;
-          break;
-      }
-
-      const angle = Math.random() * Math.PI * 2;
-      sprinkle.position.x = Math.cos(angle) * radius;
-      sprinkle.position.z = Math.sin(angle) * radius;
-      sprinkle.position.y = y;
-
-      sprinkle.rotation.z = Math.random() * Math.PI;
-
-      this.sprinkles.push(sprinkle);
-      this.scene.add(sprinkle);
-    }
-  }
-
-  createFruits() {
-    this.fruits = [];
-    const fruitCount = 12;
-    const fruitTypes = [
-      { color: 0xff4757, shape: "strawberry" },
-      { color: 0x2ed573, shape: "kiwi" },
-      { color: 0xffa502, shape: "orange" },
-      { color: 0x5f27cd, shape: "grape" },
-    ];
-
-    for (let i = 0; i < fruitCount; i++) {
-      const fruitType = fruitTypes[i % fruitTypes.length];
-      let fruitGeometry;
-
-      if (fruitType.shape === "strawberry") {
-        fruitGeometry = new THREE.ConeGeometry(0.08, 0.12, 6);
-      } else if (fruitType.shape === "kiwi") {
-        fruitGeometry = new THREE.SphereGeometry(0.06, 8, 6);
-      } else if (fruitType.shape === "orange") {
-        fruitGeometry = new THREE.SphereGeometry(0.08, 8, 6);
-      } else {
-        fruitGeometry = new THREE.SphereGeometry(0.04, 6, 4);
-      }
-
-      const fruitMaterial = new THREE.MeshLambertMaterial({
-        color: fruitType.color,
-      });
-      const fruit = new THREE.Mesh(fruitGeometry, fruitMaterial);
-
-      // Position fruits on cake sides
-      const layer = Math.floor(Math.random() * 3);
-      let y, radius;
-      switch (layer) {
-        case 0: // Bottom layer
-          y = -0.25;
-          radius = 2.1;
-          break;
-        case 1: // Middle layer
-          y = 0.7;
-          radius = 1.6;
-          break;
-        case 2: // Top layer
-          y = 1.7;
-          radius = 1.1;
-          break;
-      }
-
-      const angle = (i / fruitCount) * Math.PI * 2;
-      fruit.position.x = Math.cos(angle) * radius;
-      fruit.position.z = Math.sin(angle) * radius;
-      fruit.position.y = y;
-
-      this.fruits.push(fruit);
-      this.scene.add(fruit);
-    }
-  }
-
-  createFlowers() {
-    this.flowers = [];
-    const flowerCount = 8;
-
-    for (let i = 0; i < flowerCount; i++) {
-      // Create flower petals
-      const petalGeometry = new THREE.SphereGeometry(0.04, 6, 4);
-      const flowerGroup = new THREE.Group();
-
-      // Create 5 petals for each flower
-      for (let j = 0; j < 5; j++) {
-        const petalMaterial = new THREE.MeshBasicMaterial({
-          color: new THREE.Color().setHSL(0.8 + Math.random() * 0.2, 0.7, 0.8),
-        });
-        const petal = new THREE.Mesh(petalGeometry, petalMaterial);
-
-        const angle = (j / 5) * Math.PI * 2;
-        petal.position.x = Math.cos(angle) * 0.08;
-        petal.position.z = Math.sin(angle) * 0.08;
-        petal.scale.set(1, 0.3, 1);
-
-        flowerGroup.add(petal);
-      }
-
-      // Create flower center
-      const centerGeometry = new THREE.SphereGeometry(0.02, 6, 4);
-      const centerMaterial = new THREE.MeshBasicMaterial({ color: 0xffd700 });
-      const center = new THREE.Mesh(centerGeometry, centerMaterial);
-      flowerGroup.add(center);
-
-      // Position flowers on cake top
-      const angle = (i / flowerCount) * Math.PI * 2;
-      flowerGroup.position.x = Math.cos(angle) * 0.6;
-      flowerGroup.position.z = Math.sin(angle) * 0.6;
-      flowerGroup.position.y = 2.0;
-
-      this.flowers.push(flowerGroup);
-      this.scene.add(flowerGroup);
-    }
-  }
-
-  createStars() {
-    this.stars = [];
-    const starCount = 6;
-
-    for (let i = 0; i < starCount; i++) {
-      // Create star shape using multiple spheres
-      const starGroup = new THREE.Group();
-
-      // Create 5 points for each star
-      for (let j = 0; j < 5; j++) {
-        const pointGeometry = new THREE.ConeGeometry(0.02, 0.08, 3);
-        const pointMaterial = new THREE.MeshBasicMaterial({ color: 0xffd700 });
-        const point = new THREE.Mesh(pointGeometry, pointMaterial);
-
-        const angle = (j / 5) * Math.PI * 2;
-        point.position.x = Math.cos(angle) * 0.06;
-        point.position.z = Math.sin(angle) * 0.06;
-        point.rotation.z = angle + Math.PI / 2;
-
-        starGroup.add(point);
-      }
-
-      // Create star center
-      const centerGeometry = new THREE.SphereGeometry(0.03, 6, 4);
-      const centerMaterial = new THREE.MeshBasicMaterial({ color: 0xffed4e });
-      const center = new THREE.Mesh(centerGeometry, centerMaterial);
-      starGroup.add(center);
-
-      // Position stars around the cake
-      const layer = Math.floor(Math.random() * 2) + 1; // Middle and top layers
-      let y, radius;
-      switch (layer) {
-        case 1: // Middle layer
-          y = 0.7;
-          radius = 1.6;
-          break;
-        case 2: // Top layer
-          y = 1.7;
-          radius = 1.1;
-          break;
-      }
-
-      const angle = (i / starCount) * Math.PI * 2;
-      starGroup.position.x = Math.cos(angle) * radius;
-      starGroup.position.z = Math.sin(angle) * radius;
-      starGroup.position.y = y;
-
-      this.stars.push(starGroup);
-      this.scene.add(starGroup);
-    }
-  }
-
-  addSparkles() {
-    this.sparkles = [];
-    const sparkleCount = 50;
-    const sparkleGeometry = new THREE.SphereGeometry(0.02, 8, 6);
-
-    for (let i = 0; i < sparkleCount; i++) {
-      const sparkleMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.8,
-      });
-      const sparkle = new THREE.Mesh(sparkleGeometry, sparkleMaterial);
-
-      sparkle.position.set(
-        (Math.random() - 0.5) * 8,
-        Math.random() * 6 - 1,
-        (Math.random() - 0.5) * 8
-      );
-
-      this.sparkles.push({
-        mesh: sparkle,
-        originalY: sparkle.position.y,
-        speed: Math.random() * 0.02 + 0.01,
-        amplitude: Math.random() * 0.5 + 0.3,
-        phase: Math.random() * Math.PI * 2,
-      });
-
-      this.scene.add(sparkle);
-    }
-  }
-
-  addLighting() {
-    // Ambient light
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
-    this.scene.add(ambientLight);
-
-    // Directional light
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(5, 5, 5);
-    this.scene.add(directionalLight);
-
-    // Point lights for candles
-    this.candleLights = [];
-    this.candles.forEach(({ candle }) => {
-      const light = new THREE.PointLight(0xff6600, 0.5, 3);
-      light.position.copy(candle.position);
-      light.position.y += 0.5;
-      this.scene.add(light);
-      this.candleLights.push(light);
-    });
-  }
-
-  addConfetti() {
-    this.confetti = [];
-    const confettiCount = 100;
-    const confettiGeometry = new THREE.PlaneGeometry(0.1, 0.1);
-
-    for (let i = 0; i < confettiCount; i++) {
-      const confettiMaterial = new THREE.MeshBasicMaterial({
-        color: new THREE.Color().setHSL(Math.random(), 0.8, 0.6),
-        transparent: true,
-        opacity: 0.8,
-      });
-      const confettiPiece = new THREE.Mesh(confettiGeometry, confettiMaterial);
-
-      confettiPiece.position.set(
-        (Math.random() - 0.5) * 10,
-        Math.random() * 5 + 2,
-        (Math.random() - 0.5) * 10
-      );
-
-      confettiPiece.rotation.set(
-        Math.random() * Math.PI,
-        Math.random() * Math.PI,
-        Math.random() * Math.PI
-      );
-
-      this.confetti.push({
-        mesh: confettiPiece,
-        velocity: {
-          x: (Math.random() - 0.5) * 0.02,
-          y: -Math.random() * 0.05,
-          z: (Math.random() - 0.5) * 0.02,
-        },
-        rotation: {
-          x: (Math.random() - 0.5) * 0.1,
-          y: (Math.random() - 0.5) * 0.1,
-          z: (Math.random() - 0.5) * 0.1,
-        },
-      });
-
-      this.scene.add(confettiPiece);
-    }
-  }
-
-  loop() {
-    if (this.disposed) return;
-
-    const elapsedTime = this.clock.getElapsedTime();
-    const deltaTime = this.clock.getDelta();
-
-    // Smooth rotation interpolation
-    this.rotationX += (this.targetRotationX - this.rotationX) * 0.1;
-    this.rotationY += (this.targetRotationY - this.rotationY) * 0.1;
-
-    // Apply rotation to the cake group
-    this.cakeGroup.rotation.y = this.rotationY;
-    this.cakeGroup.rotation.x = this.rotationX;
-
-    // Subtle automatic rotation when not interacting
-    if (!this.isMouseDown) {
-      this.targetRotationY += deltaTime * 0.2;
-    }
-
-    // Animate candles with enhanced effects
-    this.candles.forEach(({ candle, flame, glow, wick }, index) => {
-      const time = elapsedTime * 5 + index;
-      flame.scale.y = 1 + Math.sin(time) * 0.3;
-      flame.scale.x = 1 + Math.sin(time * 1.5) * 0.1;
-      flame.scale.z = 1 + Math.sin(time * 1.5) * 0.1;
-      flame.rotation.z = Math.sin(time * 3) * 0.1;
-      flame.rotation.x = Math.sin(time * 2) * 0.05;
-
-      // Flickering effect
-      flame.material.opacity = 0.6 + Math.sin(time * 10) * 0.3;
-      glow.material.opacity = 0.2 + Math.sin(time * 8) * 0.1;
-
-      // Wick animation
-      wick.rotation.z = Math.sin(time * 2) * 0.05;
-    });
-
-    // Animate sparkles
-    this.sparkles.forEach((sparkle) => {
-      sparkle.mesh.position.y =
-        sparkle.originalY +
-        Math.sin(elapsedTime * sparkle.speed + sparkle.phase) *
-          sparkle.amplitude;
-      sparkle.mesh.rotation.y += 0.02;
-      sparkle.mesh.rotation.x += 0.01;
-
-      // Twinkling effect
-      sparkle.mesh.material.opacity =
-        0.5 + Math.sin(elapsedTime * 3 + sparkle.phase) * 0.3;
-    });
-
-    // Animate confetti with physics
-    this.confetti.forEach((confetti) => {
-      confetti.mesh.position.x += confetti.velocity.x;
-      confetti.mesh.position.y += confetti.velocity.y;
-      confetti.mesh.position.z += confetti.velocity.z;
-
-      confetti.mesh.rotation.x += confetti.rotation.x;
-      confetti.mesh.rotation.y += confetti.rotation.y;
-      confetti.mesh.rotation.z += confetti.rotation.z;
-
-      // Add gravity
-      confetti.velocity.y -= 0.001;
-
-      // Reset confetti when it falls too low
-      if (confetti.mesh.position.y < -3) {
-        confetti.mesh.position.y = 5;
-        confetti.mesh.position.x = (Math.random() - 0.5) * 10;
-        confetti.mesh.position.z = (Math.random() - 0.5) * 10;
-        confetti.velocity.y = -Math.random() * 0.05;
-      }
-    });
-
-    // Enhanced camera movement
-    if (!this.isMouseDown) {
-      this.camera.position.x = Math.sin(elapsedTime * 0.3) * 0.5;
-      this.camera.position.y = Math.sin(elapsedTime * 0.2) * 0.3;
-    }
-    this.camera.lookAt(this.scene.position);
-
-    // Animate icing decorations
-    this.icing.rotation.z += deltaTime * 0.3;
-    this.topIcing.rotation.z += deltaTime * 0.4;
-    this.innerIcing.rotation.z += deltaTime * 0.2;
-    this.bottomIcing.rotation.z += deltaTime * 0.1;
-
-    // Animate decorations (check if arrays exist first)
-    if (this.sprinkles) {
-      this.sprinkles.forEach((sprinkle, index) => {
-        sprinkle.rotation.y += deltaTime * (0.5 + index * 0.1);
-        sprinkle.rotation.z += deltaTime * 0.3;
-      });
-    }
-
-    if (this.fruits) {
-      this.fruits.forEach((fruit, index) => {
-        fruit.rotation.y += deltaTime * 0.2;
-        fruit.position.y += Math.sin(elapsedTime * 2 + index) * 0.001;
-      });
-    }
-
-    if (this.flowers) {
-      this.flowers.forEach((flower, index) => {
-        flower.rotation.y += deltaTime * 0.1;
-        flower.children.forEach((petal, petalIndex) => {
-          petal.rotation.x += deltaTime * (0.2 + petalIndex * 0.1);
-        });
-      });
-    }
-
-    if (this.stars) {
-      this.stars.forEach((star, index) => {
-        star.rotation.y += deltaTime * 0.3;
-        star.children.forEach((point) => {
-          point.rotation.z += deltaTime * 0.5;
-        });
-      });
-    }
-
-    this.renderer.render(this.scene, this.camera);
-    this.loopId = requestAnimationFrame(this.loop);
-  }
-
-  onResize() {
+  handleResize() {
     this.width = window.innerWidth;
     this.height = window.innerHeight;
-    this.camera.aspect = this.width / this.height;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(this.width, this.height);
-  }
 
-  onMouseMove(event) {
-    this.mouseX = event.clientX;
-    this.mouseY = event.clientY;
+    this.canvas.style.width = `${this.width}px`;
+    this.canvas.style.height = `${this.height}px`;
+    this.canvas.width = Math.floor(this.width * this.pixelRatio);
+    this.canvas.height = Math.floor(this.height * this.pixelRatio);
 
-    if (this.isMouseDown) {
-      const deltaX = event.clientX - this.mouseDownX;
-      const deltaY = event.clientY - this.mouseDownY;
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ctx.scale(this.pixelRatio, this.pixelRatio);
 
-      this.targetRotationY += deltaX * 0.01;
-      this.targetRotationX += deltaY * 0.01;
+    this.centerX = this.width / 2;
+    this.centerY = this.height * 0.6;
 
-      // Limit vertical rotation
-      this.targetRotationX = Math.max(
-        -Math.PI / 3,
-        Math.min(Math.PI / 3, this.targetRotationX)
-      );
+    const baseWidth = Math.min(this.width * 0.42, 420);
+    const baseHeight = baseWidth * 0.38;
 
-      this.mouseDownX = event.clientX;
-      this.mouseDownY = event.clientY;
+    this.cakeMetrics = {
+      baseWidth,
+      baseHeight,
+      middleWidth: baseWidth * 0.78,
+      middleHeight: baseHeight * 0.82,
+      topWidth: baseWidth * 0.62,
+      topHeight: baseHeight * 0.68,
+      spacing: baseHeight * 0.36,
+    };
+
+    if (this.confetti.length === 0) {
+      this.seedElements();
+    } else {
+      this.resetConfetti();
+      this.resetSparkles();
+      this.resetOrbiters();
+      this.resetSprinkles();
     }
   }
 
-  onMouseDown(event) {
-    this.isMouseDown = true;
-    this.mouseDownX = event.clientX;
-    this.mouseDownY = event.clientY;
-    this.canvas.style.cursor = "grabbing";
+  seedElements() {
+    this.resetConfetti();
+    this.resetSparkles();
+    this.resetOrbiters();
+    this.resetSprinkles();
+    this.candleFlickerSeeds = Array.from({ length: 9 }, () => Math.random() * Math.PI * 2);
   }
 
-  onMouseUp(event) {
-    this.isMouseDown = false;
-    this.canvas.style.cursor = "grab";
+  resetConfetti() {
+    const confettiCount = Math.floor(140 + this.width * 0.12);
+    this.confetti = Array.from({ length: confettiCount }, (_, index) =>
+      this.createConfettiParticle(index / confettiCount)
+    );
   }
 
-  onTouchStart(event) {
-    event.preventDefault();
-    if (event.touches.length === 1) {
-      this.isMouseDown = true;
-      this.mouseDownX = event.touches[0].clientX;
-      this.mouseDownY = event.touches[0].clientY;
+  resetSparkles() {
+    const sparkleCount = 70;
+    this.sparkles = Array.from({ length: sparkleCount }, (_, index) =>
+      this.createSparkleParticle(index)
+    );
+  }
+
+  resetOrbiters() {
+    const orbiterCount = 16;
+    this.orbiters = Array.from({ length: orbiterCount }, (_, index) =>
+      this.createOrbiterParticle(index)
+    );
+  }
+
+  resetSprinkles() {
+    const { topWidth } = this.cakeMetrics;
+    if (!topWidth) {
+      this.sprinkles = [];
+      return;
     }
+    const count = 120;
+    const radiusX = topWidth / 2;
+    this.sprinkles = Array.from({ length: count }, (_, index) => ({
+      angle: (index / count) * Math.PI * 2,
+      radius: radiusX * (0.3 + Math.random() * 0.55),
+      wobbleOffset: Math.random() * Math.PI * 2,
+      colorIndex: index % 4,
+      size: 2.6 + Math.random() * 1.6,
+    }));
+  }
+
+  createConfettiParticle(progress = Math.random()) {
+    const palette = ["#ff8dc7", "#ffda74", "#8be7ff", "#c7a0ff", "#ff9f9f", "#8cf8b9"];
+    return {
+      x: Math.random() * this.width,
+      y: progress * (this.height + 240) - 120,
+      size: 4 + Math.random() * 6,
+      speedX: (Math.random() - 0.5) * 40,
+      speedY: 50 + Math.random() * 70,
+      rotation: Math.random() * Math.PI * 2,
+      rotationSpeed: (Math.random() - 0.5) * 1.6,
+      color: palette[Math.floor(Math.random() * palette.length)],
+    };
+  }
+
+  createSparkleParticle() {
+    const radius = Math.min(this.width, this.height) * 0.42;
+    return {
+      angle: Math.random() * Math.PI * 2,
+      radius: radius * (0.42 + Math.random() * 0.25),
+      speed: 0.4 + Math.random() * 0.6,
+      size: 1.5 + Math.random() * 2.5,
+      twinkleOffset: Math.random() * Math.PI * 2,
+      orbitTilt: 0.18 + Math.random() * 0.12,
+    };
+  }
+
+  createOrbiterParticle(index) {
+    const baseRadius = Math.min(this.width, this.height) * 0.32;
+    const colorChoices = ["#ffd8f5", "#ffe27d", "#d4f6ff", "#f7a9ff"];
+    return {
+      angle: (index / 8) * Math.PI + Math.random() * 0.4,
+      radius: baseRadius * (0.96 + Math.random() * 0.25),
+      speed: 0.25 + Math.random() * 0.2,
+      size: 12 + Math.random() * 20,
+      color: colorChoices[index % colorChoices.length],
+      wobble: Math.random() * Math.PI * 2,
+    };
+  }
+
+  onPointerMove(event) {
+    this.mouse = { x: event.clientX, y: event.clientY, isInside: true };
+    const now = performance.now();
+    if (now - this.lastPointerBurst > 260) {
+      this.createPointerBurst(this.mouse.x, this.mouse.y);
+      this.lastPointerBurst = now;
+    }
+  }
+
+  onPointerLeave() {
+    this.mouse.isInside = false;
+  }
+
+  onPointerDown(event) {
+    this.createPointerBurst(event.clientX, event.clientY, true);
   }
 
   onTouchMove(event) {
+    if (event.touches.length === 0) {
+      return;
+    }
+    const touch = event.touches[0];
+    this.onPointerMove({ clientX: touch.clientX, clientY: touch.clientY });
     event.preventDefault();
-    if (event.touches.length === 1 && this.isMouseDown) {
-      const deltaX = event.touches[0].clientX - this.mouseDownX;
-      const deltaY = event.touches[0].clientY - this.mouseDownY;
+  }
 
-      this.targetRotationY += deltaX * 0.01;
-      this.targetRotationX += deltaY * 0.01;
+  createPointerBurst(x, y, intense = false) {
+    this.pointerBursts.push({
+      x,
+      y,
+      radius: 0,
+      maxRadius: intense ? 220 : 160,
+      life: 1,
+      hue: 300 + Math.random() * 60,
+      lineWidth: intense ? 6 : 4,
+    });
+  }
 
-      // Limit vertical rotation
-      this.targetRotationX = Math.max(
-        -Math.PI / 3,
-        Math.min(Math.PI / 3, this.targetRotationX)
+  updateConfetti(deltaSeconds) {
+    this.confetti.forEach((piece, index) => {
+      piece.x += piece.speedX * deltaSeconds;
+      piece.y += piece.speedY * deltaSeconds;
+      piece.rotation += piece.rotationSpeed * deltaSeconds;
+
+      if (piece.y > this.height + 120) {
+        this.confetti[index] = this.createConfettiParticle(0);
+        this.confetti[index].y = -100;
+      }
+
+      if (piece.x < -50) {
+        piece.x = this.width + 50;
+      } else if (piece.x > this.width + 50) {
+        piece.x = -50;
+      }
+    });
+  }
+
+  updateSparkles(deltaSeconds) {
+    this.sparkles.forEach((sparkle) => {
+      sparkle.angle += sparkle.speed * deltaSeconds;
+    });
+  }
+
+  updateOrbiters(deltaSeconds) {
+    this.orbiters.forEach((orbiter) => {
+      orbiter.angle += orbiter.speed * deltaSeconds;
+      orbiter.wobble += deltaSeconds * 2;
+    });
+  }
+
+  updatePointerBursts(deltaSeconds) {
+    this.pointerBursts = this.pointerBursts
+      .map((burst) => ({
+        ...burst,
+        radius: burst.radius + burst.maxRadius * deltaSeconds * 1.6,
+        life: burst.life - deltaSeconds * 1.3,
+      }))
+      .filter((burst) => burst.life > 0);
+  }
+
+  loop(now) {
+    if (this.disposed) {
+      return;
+    }
+
+    if (!this.lastTime) {
+      this.lastTime = now;
+    }
+
+    const delta = Math.min(now - this.lastTime, 100);
+    const deltaSeconds = delta / 1000;
+
+    this.time += delta;
+    this.updateConfetti(deltaSeconds);
+    this.updateSparkles(deltaSeconds);
+    this.updateOrbiters(deltaSeconds);
+    this.updatePointerBursts(deltaSeconds);
+
+    this.drawScene();
+
+    this.lastTime = now;
+    this.loopId = requestAnimationFrame(this.loop);
+  }
+
+  drawScene() {
+    this.ctx.save();
+    this.ctx.clearRect(0, 0, this.width, this.height);
+    this.drawBackground();
+    this.drawConfetti();
+    this.drawSparkles();
+    this.drawOrbiters();
+    this.drawCake();
+    this.drawPointerBursts();
+    this.drawForegroundDust();
+    this.ctx.restore();
+  }
+
+  drawBackground() {
+    const gradient = this.ctx.createLinearGradient(0, 0, 0, this.height);
+    gradient.addColorStop(0, "#200a21");
+    gradient.addColorStop(0.45, "#2a0d2a");
+    gradient.addColorStop(1, "#120413");
+    this.ctx.fillStyle = gradient;
+    this.ctx.fillRect(0, 0, this.width, this.height);
+
+    const glowGradient = this.ctx.createRadialGradient(
+      this.centerX,
+      this.centerY,
+      Math.min(this.width, this.height) * 0.12,
+      this.centerX,
+      this.centerY,
+      Math.max(this.width, this.height) * 0.75
+    );
+    glowGradient.addColorStop(0, `rgba(255, 185, 240, ${0.18 + this.glowPulse.strength * 0.22})`);
+    glowGradient.addColorStop(1, "rgba(18, 4, 19, 0.1)");
+    this.ctx.fillStyle = glowGradient;
+    this.ctx.fillRect(0, 0, this.width, this.height);
+  }
+
+  drawConfetti() {
+    this.ctx.save();
+    this.ctx.globalAlpha = 0.85;
+    this.confetti.forEach((piece) => {
+      this.ctx.save();
+      this.ctx.translate(piece.x, piece.y);
+      this.ctx.rotate(piece.rotation);
+      const gradient = this.ctx.createLinearGradient(0, -piece.size, 0, piece.size);
+      gradient.addColorStop(0, "rgba(255, 255, 255, 0.85)");
+      gradient.addColorStop(1, piece.color);
+      this.ctx.fillStyle = gradient;
+      this.ctx.fillRect(-piece.size / 2, -piece.size, piece.size, piece.size * 1.8);
+      this.ctx.restore();
+    });
+    this.ctx.restore();
+  }
+
+  drawSparkles() {
+    const { spacing } = this.cakeMetrics;
+    this.ctx.save();
+    this.ctx.globalCompositeOperation = "lighter";
+    this.sparkles.forEach((sparkle) => {
+      const progress = Math.sin(this.time * 0.003 + sparkle.twinkleOffset) * 0.5 + 0.5;
+      const size = sparkle.size * (0.7 + progress * 0.8);
+      const x = this.centerX + Math.cos(sparkle.angle) * sparkle.radius;
+      const y =
+        this.centerY -
+        spacing * 1.2 +
+        Math.sin(sparkle.angle * sparkle.orbitTilt + this.time * 0.001) * 24;
+      this.ctx.globalAlpha = 0.4 + progress * 0.6;
+      this.ctx.fillStyle = "#ffe8ff";
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, size, 0, Math.PI * 2);
+      this.ctx.fill();
+    });
+    this.ctx.restore();
+  }
+
+  drawOrbiters() {
+    this.ctx.save();
+    this.ctx.globalCompositeOperation = "screen";
+    const heightOffset = this.cakeMetrics.baseHeight * 0.2;
+
+    this.orbiters.forEach((orbiter) => {
+      const wobble = Math.sin(orbiter.wobble) * 6;
+      const x = this.centerX + Math.cos(orbiter.angle) * orbiter.radius;
+      const y =
+        this.centerY -
+        this.cakeMetrics.spacing +
+        Math.sin(orbiter.angle * 0.6) * 40 +
+        wobble -
+        heightOffset;
+
+      this.ctx.save();
+      this.ctx.translate(x, y);
+      const pulse =
+        0.6 + Math.sin(this.time * 0.003 + orbiter.angle * 3 + orbiter.wobble) * 0.25;
+      this.ctx.scale(pulse, pulse);
+      this.drawHeartShape(0, 0, orbiter.size, orbiter.color);
+      this.ctx.restore();
+    });
+
+    this.ctx.restore();
+  }
+
+  drawHeartShape(x, y, size, color) {
+    this.ctx.save();
+    this.ctx.translate(x, y);
+    this.ctx.fillStyle = color;
+    this.ctx.beginPath();
+    this.ctx.moveTo(0, 0);
+    this.ctx.bezierCurveTo(-size * 0.5, -size * 0.65, -size, -size * 0.05, 0, size);
+    this.ctx.bezierCurveTo(size, -size * 0.05, size * 0.5, -size * 0.65, 0, 0);
+    this.ctx.closePath();
+    this.ctx.fill();
+    this.ctx.restore();
+  }
+
+  drawCake() {
+    const { baseWidth, baseHeight, middleWidth, middleHeight, topWidth, topHeight, spacing } =
+      this.cakeMetrics;
+
+    this.ctx.save();
+    this.ctx.translate(this.centerX, this.centerY);
+    this.ctx.scale(this.cakePulse.scale, this.cakePulse.scale);
+
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.ellipse(0, baseHeight * 0.9, baseWidth * 0.7, baseWidth * 0.22, 0, 0, Math.PI * 2);
+    const shadow = this.ctx.createRadialGradient(
+      0,
+      baseHeight * 0.9,
+      baseWidth * 0.1,
+      0,
+      baseHeight * 0.9,
+      baseWidth * 0.85
+    );
+    shadow.addColorStop(0, "rgba(0, 0, 0, 0.32)");
+    shadow.addColorStop(1, "rgba(0, 0, 0, 0)");
+    this.ctx.fillStyle = shadow;
+    this.ctx.fill();
+    this.ctx.restore();
+
+    this.ctx.shadowColor = "rgba(255, 120, 220, 0.35)";
+    this.ctx.shadowBlur = 24;
+
+    const layers = [
+      {
+        width: baseWidth,
+        height: baseHeight,
+        y: 0,
+        colors: {
+          topLight: "#ffeafc",
+          top: "#ffd3f4",
+          topShadow: "#f7a8d6",
+          sideLight: "#ffbadf",
+          sideDark: "#ff6dba",
+        },
+      },
+      {
+        width: middleWidth,
+        height: middleHeight,
+        y: -baseHeight + spacing,
+        colors: {
+          topLight: "#fff2e9",
+          top: "#ffdcd4",
+          topShadow: "#ffb4a4",
+          sideLight: "#ffc2b0",
+          sideDark: "#ff8c7f",
+        },
+      },
+      {
+        width: topWidth,
+        height: topHeight,
+        y: -baseHeight - middleHeight + spacing * 2,
+        colors: {
+          topLight: "#e8f7ff",
+          top: "#d6edff",
+          topShadow: "#9dd1ff",
+          sideLight: "#bfe1ff",
+          sideDark: "#6fb6ff",
+        },
+      },
+    ];
+
+    layers.forEach((layer, index) => {
+      this.drawCakeLayer(layer);
+      if (index === 0) {
+        this.drawIcing(layer, 18, 8);
+      } else if (index === 1) {
+        this.drawIcing(layer, 14, 6);
+      } else {
+        this.drawIcing(layer, 10, 5);
+      }
+    });
+
+    this.ctx.shadowBlur = 0;
+
+    this.drawSprinkles(layers[2]);
+    this.drawCandles(layers[2]);
+
+    this.ctx.restore();
+  }
+
+  drawCakeLayer(layer) {
+    const { width, height, y, colors } = layer;
+    const radiusX = width / 2;
+    const radiusY = width / 6;
+    const topY = y - height;
+
+    const sideGradient = this.ctx.createLinearGradient(0, topY, 0, y + radiusY);
+    sideGradient.addColorStop(0, colors.sideLight);
+    sideGradient.addColorStop(1, colors.sideDark);
+
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.moveTo(-radiusX, topY);
+    this.ctx.lineTo(-radiusX, y);
+    this.ctx.ellipse(0, y, radiusX, radiusY, 0, Math.PI, 0);
+    this.ctx.lineTo(radiusX, topY);
+    this.ctx.ellipse(0, topY, radiusX, radiusY, 0, 0, Math.PI, false);
+    this.ctx.closePath();
+    this.ctx.fillStyle = sideGradient;
+    this.ctx.fill();
+    this.ctx.lineWidth = 1.4;
+    this.ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+    this.ctx.stroke();
+
+    const topGradient = this.ctx.createLinearGradient(-radiusX, topY - radiusY, radiusX, topY);
+    topGradient.addColorStop(0, colors.topLight);
+    topGradient.addColorStop(0.5, colors.top);
+    topGradient.addColorStop(1, colors.topShadow);
+    this.ctx.beginPath();
+    this.ctx.ellipse(0, topY, radiusX, radiusY, 0, 0, Math.PI * 2);
+    this.ctx.fillStyle = topGradient;
+    this.ctx.fill();
+
+    this.ctx.restore();
+  }
+
+  drawIcing(layer, segments, amplitude) {
+    const { width, height, y } = layer;
+    const radiusX = width / 2;
+    const radiusY = width / 6;
+    const topY = y - height;
+    const segmentWidth = (radiusX * 2) / segments;
+
+    this.ctx.save();
+    this.ctx.strokeStyle = "rgba(255, 255, 255, 0.82)";
+    this.ctx.lineWidth = 2;
+    this.ctx.lineJoin = "round";
+    this.ctx.beginPath();
+    for (let i = 0; i <= segments; i += 1) {
+      const progress = i / segments;
+      const angle = progress * Math.PI * 2;
+      const wave = Math.sin(angle * 2 + this.time * 0.004) * amplitude;
+      const x = -radiusX + segmentWidth * i;
+      const yPos = topY + radiusY + wave;
+      if (i === 0) {
+        this.ctx.moveTo(x, yPos);
+      } else {
+        this.ctx.lineTo(x, yPos);
+      }
+    }
+    this.ctx.stroke();
+    this.ctx.restore();
+  }
+
+  drawSprinkles(topLayer) {
+    if (!this.sprinkles.length) {
+      return;
+    }
+    const { width, height, y } = topLayer;
+    const radiusY = width / 6;
+    const topY = y - height;
+    const sprinkleColors = ["#ff769b", "#ffe26f", "#79f3ff", "#c5a6ff"];
+
+    this.ctx.save();
+    this.sprinkles.forEach((sprinkle) => {
+      const x = Math.cos(sprinkle.angle) * sprinkle.radius;
+      const yOffset = Math.sin(sprinkle.angle) * radiusY * 0.6;
+      const wobble = Math.sin(this.time * 0.004 + sprinkle.wobbleOffset) * 4;
+      this.ctx.save();
+      this.ctx.translate(x, topY + yOffset + wobble);
+      this.ctx.rotate(sprinkle.angle);
+      this.ctx.fillStyle = sprinkleColors[sprinkle.colorIndex];
+      this.ctx.fillRect(-sprinkle.size / 2, -sprinkle.size / 2, sprinkle.size, sprinkle.size * 0.6);
+      this.ctx.restore();
+    });
+    this.ctx.restore();
+  }
+
+  drawCandles(topLayer) {
+    const { width, height, y } = topLayer;
+    const radiusX = width / 2;
+    const radiusY = width / 6;
+    const topY = y - height;
+    const candleCount = this.candleFlickerSeeds.length || 8;
+    const candleColors = ["#ff9fbf", "#ffdd7f", "#8fe8ff", "#cfa3ff"];
+
+    for (let i = 0; i < candleCount; i += 1) {
+      const angle = (i / candleCount) * Math.PI * 2;
+      const radius = radiusX * 0.72;
+      const x = Math.cos(angle) * radius;
+      const yOffset = Math.sin(angle) * radiusY * 0.6;
+      const flicker = 1 + Math.sin(this.time * 0.005 + this.candleFlickerSeeds[i]) * 0.15;
+      const candleHeight = height * 0.9;
+      const candleWidth = width * 0.05;
+
+      this.ctx.save();
+      this.ctx.translate(x, topY + yOffset - candleHeight);
+      this.ctx.rotate(Math.sin(this.time * 0.001 + angle) * 0.02);
+
+      const candleGradient = this.ctx.createLinearGradient(0, candleHeight, 0, 0);
+      const color = candleColors[i % candleColors.length];
+      candleGradient.addColorStop(0, `${color}55`);
+      candleGradient.addColorStop(0.5, color);
+      candleGradient.addColorStop(1, "#ffffff");
+
+      this.ctx.fillStyle = candleGradient;
+      this.ctx.fillRect(-candleWidth / 2, 0, candleWidth, candleHeight);
+
+      this.ctx.fillStyle = "#44210a";
+      this.ctx.fillRect(-candleWidth * 0.08, -6, candleWidth * 0.16, 6);
+
+      const flameHeight = candleHeight * 0.38 * flicker;
+      const flameWidth = candleWidth * 0.9 * flicker;
+
+      this.ctx.save();
+      this.ctx.translate(0, -6);
+      this.ctx.globalCompositeOperation = "lighter";
+
+      const flameGradient = this.ctx.createRadialGradient(
+        0,
+        -flameHeight * 0.3,
+        0,
+        0,
+        0,
+        flameHeight
       );
+      flameGradient.addColorStop(0, "rgba(255, 255, 255, 0.9)");
+      flameGradient.addColorStop(0.4, "rgba(255, 200, 120, 0.9)");
+      flameGradient.addColorStop(1, "rgba(255, 120, 60, 0.05)");
 
-      this.mouseDownX = event.touches[0].clientX;
-      this.mouseDownY = event.touches[0].clientY;
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, -flameHeight);
+      this.ctx.bezierCurveTo(
+        flameWidth,
+        -flameHeight * 0.6,
+        flameWidth * 0.4,
+        0,
+        0,
+        flameHeight * 0.2
+      );
+      this.ctx.bezierCurveTo(
+        -flameWidth * 0.4,
+        0,
+        -flameWidth,
+        -flameHeight * 0.6,
+        0,
+        -flameHeight
+      );
+      this.ctx.fillStyle = flameGradient;
+      this.ctx.fill();
+
+      this.ctx.beginPath();
+      this.ctx.ellipse(0, -flameHeight * 0.35, flameWidth * 1.6, flameHeight * 1.6, 0, 0, Math.PI * 2);
+      this.ctx.fillStyle = "rgba(255, 180, 90, 0.25)";
+      this.ctx.fill();
+
+      this.ctx.restore();
+      this.ctx.restore();
     }
   }
 
-  onTouchEnd(event) {
-    event.preventDefault();
-    this.isMouseDown = false;
+  drawPointerBursts() {
+    if (this.pointerBursts.length === 0) {
+      return;
+    }
+
+    this.ctx.save();
+    this.ctx.globalCompositeOperation = "lighter";
+    this.pointerBursts.forEach((burst) => {
+      this.ctx.globalAlpha = Math.max(burst.life, 0) * 0.7;
+      this.ctx.lineWidth = burst.lineWidth;
+      this.ctx.strokeStyle = `hsla(${burst.hue}, 100%, 75%, ${burst.life})`;
+      this.ctx.beginPath();
+      this.ctx.arc(burst.x, burst.y, burst.radius, 0, Math.PI * 2);
+      this.ctx.stroke();
+
+      this.ctx.globalAlpha = Math.max(burst.life - 0.2, 0) * 0.35;
+      this.ctx.beginPath();
+      this.ctx.arc(burst.x, burst.y, burst.radius * 0.6, 0, Math.PI * 2);
+      this.ctx.stroke();
+    });
+    this.ctx.restore();
+  }
+
+  drawForegroundDust() {
+    this.ctx.save();
+    this.ctx.globalCompositeOperation = "screen";
+    const gradient = this.ctx.createRadialGradient(
+      this.centerX,
+      this.centerY - this.cakeMetrics.baseHeight,
+      0,
+      this.centerX,
+      this.centerY,
+      Math.max(this.width, this.height) * 0.65
+    );
+    gradient.addColorStop(0, "rgba(255, 180, 240, 0.35)");
+    gradient.addColorStop(0.45, "rgba(255, 200, 250, 0.12)");
+    gradient.addColorStop(1, "rgba(255, 200, 250, 0)");
+    this.ctx.fillStyle = gradient;
+    this.ctx.fillRect(0, 0, this.width, this.height);
+    this.ctx.restore();
   }
 
   dispose() {
@@ -811,17 +809,11 @@ class BirthdayCake {
     if (this.loopId) {
       cancelAnimationFrame(this.loopId);
     }
-    window.removeEventListener("resize", this.onResize);
-    window.removeEventListener("mousemove", this.onMouseMove);
-    window.removeEventListener("mousedown", this.onMouseDown);
-    window.removeEventListener("mouseup", this.onMouseUp);
-    window.removeEventListener("touchstart", this.onTouchStart);
-    window.removeEventListener("touchmove", this.onTouchMove);
-    window.removeEventListener("touchend", this.onTouchEnd);
-    if (this.renderer) {
-      this.renderer.dispose();
-    }
-    this.scene.clear();
+    window.removeEventListener("resize", this.handleResize);
+    this.canvas.removeEventListener("pointermove", this.onPointerMove);
+    this.canvas.removeEventListener("pointerleave", this.onPointerLeave);
+    this.canvas.removeEventListener("pointerdown", this.onPointerDown);
+    this.canvas.removeEventListener("touchmove", this.onTouchMove);
   }
 }
 
