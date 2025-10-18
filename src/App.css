@@ -64,16 +64,36 @@ body::before {
 
 .h1text {
   position: absolute;
-  top: 8vh;
-  left: 2rem;
-  right: 2rem;
+  bottom: 4vh;
+  left: 0;
+  right: 0;
   text-align: center;
   font-weight: 400;
-  font-size: max(3rem, 2vh);
-  text-shadow: 0 0 10px rgba(255, 153, 204, 0.7);
+  font-size: clamp(2.4rem, 5.5vw, 3.4rem);
+  text-shadow: 0 6px 18px rgba(45, 16, 33, 0.4), 0 0 10px rgba(255, 153, 204, 0.4);
+  max-width: min(640px, 92vw);
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(180deg, rgba(32, 10, 32, 0.45) 0%, rgba(32, 10, 32, 0.25) 100%);
+  border-radius: 36px;
+  backdrop-filter: blur(6px);
   opacity: 0;
   animation: fadeIn 2s ease-in forwards 1s, textGlow 8s ease-in-out infinite 2s;
   z-index: 110;
+}
+
+.h1text .h1text-line {
+  display: block;
+  letter-spacing: 0.04em;
+}
+
+.h1text .h1text-date {
+  display: block;
+  margin-top: 0.65rem;
+  font-size: clamp(1.4rem, 3vw, 2.2rem);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 230, 246, 0.82);
 }
 
 .birthday-rings {

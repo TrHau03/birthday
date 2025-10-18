@@ -1,9 +1,11 @@
 import { gsap } from "gsap";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import "./App.css";
 import audioSrc from "./audio.mp3";
+
+const TARGET_AUDIO_VOLUME = 0.7;
 
 const HEART_VERTEX_SHADER = /* glsl */ `
 #define M_PI 3.1415926535897932384626433832795
@@ -101,7 +103,6 @@ void main() {
 }
 `;
 
-
 class BirthdayCake {
   constructor({ canvas }) {
     this.canvas = canvas;
@@ -122,6 +123,11 @@ class BirthdayCake {
     this.pointerBursts = [];
     this.sprinkles = [];
     this.candleFlickerSeeds = [];
+    this.icingDrips = {};
+    this.berries = [];
+    this.chocolateShards = [];
+    this.macarons = [];
+    this.glazeRipples = [];
 
     this.mouse = { x: 0, y: 0, isInside: false };
     this.lastPointerBurst = 0;
@@ -159,7 +165,9 @@ class BirthdayCake {
     this.canvas.addEventListener("pointermove", this.onPointerMove);
     this.canvas.addEventListener("pointerleave", this.onPointerLeave);
     this.canvas.addEventListener("pointerdown", this.onPointerDown);
-    this.canvas.addEventListener("touchmove", this.onTouchMove, { passive: false });
+    this.canvas.addEventListener("touchmove", this.onTouchMove, {
+      passive: false,
+    });
 
     this.disposed = false;
     this.loopId = requestAnimationFrame(this.loop);
@@ -186,11 +194,11 @@ class BirthdayCake {
     this.cakeMetrics = {
       baseWidth,
       baseHeight,
-      middleWidth: baseWidth * 0.78,
-      middleHeight: baseHeight * 0.82,
-      topWidth: baseWidth * 0.62,
-      topHeight: baseHeight * 0.68,
-      spacing: baseHeight * 0.36,
+      middleWidth: baseWidth * 0.74,
+      middleHeight: baseHeight * 0.65,
+      topWidth: baseWidth * 0.7,
+      topHeight: baseHeight * 0.45,
+      spacing: baseHeight * 0.3,
     };
 
     if (this.confetti.length === 0) {
@@ -200,6 +208,8 @@ class BirthdayCake {
       this.resetSparkles();
       this.resetOrbiters();
       this.resetSprinkles();
+      this.generateIcingDrips();
+      this.prepareGarnishes();
     }
   }
 
@@ -208,7 +218,12 @@ class BirthdayCake {
     this.resetSparkles();
     this.resetOrbiters();
     this.resetSprinkles();
-    this.candleFlickerSeeds = Array.from({ length: 9 }, () => Math.random() * Math.PI * 2);
+    this.candleFlickerSeeds = Array.from(
+      { length: 9 },
+      () => Math.random() * Math.PI * 2
+    );
+    this.generateIcingDrips();
+    this.prepareGarnishes();
   }
 
   resetConfetti() {
@@ -242,15 +257,144 @@ class BirthdayCake {
     const radiusX = topWidth / 2;
     this.sprinkles = Array.from({ length: count }, (_, index) => ({
       angle: (index / count) * Math.PI * 2,
-      radius: radiusX * (0.3 + Math.random() * 0.55),
+      radius: radiusX * (0.2 + Math.random() * 0.35),
       wobbleOffset: Math.random() * Math.PI * 2,
       colorIndex: index % 4,
       size: 2.6 + Math.random() * 1.6,
     }));
   }
 
+  generateIcingDrips() {
+    if (!this.cakeMetrics) {
+      this.icingDrips = {};
+      return;
+    }
+
+    const { baseWidth, baseHeight, topWidth, topHeight } = this.cakeMetrics;
+
+    this.icingDrips = {
+      base: this.createDripSet(
+        baseWidth,
+        Math.round(baseWidth * 0.42),
+        baseHeight * 0.3
+      ),
+      chocolate: this.createDripSet(
+        topWidth,
+        Math.round(topWidth * 0.5),
+        topHeight * 0.6
+      ),
+    };
+  }
+
+  createDripSet(width, count, depth) {
+    if (!width || width <= 0 || !count) {
+      return [];
+    }
+
+    return Array.from({ length: count }, (_, index) => {
+      const normalized = index / count;
+      const jitter = (Math.random() - 0.5) * 0.08;
+      const position = Math.min(Math.max(normalized + jitter, 0.02), 0.98);
+
+      const baseDepth = depth * (0.4 + Math.random() * 0.75);
+      const tipTaper = 0.4 + Math.random() * 0.35;
+      const widthFactor = 0.028 + Math.random() * 0.028;
+
+      return {
+        position,
+        depth: baseDepth,
+        width: width * widthFactor,
+        curvature: tipTaper,
+      };
+    }).filter(
+      (drip, index, arr) =>
+        index === 0 || Math.abs(drip.position - arr[index - 1].position) > 0.04
+    );
+  }
+
+  prepareGarnishes() {
+    if (!this.cakeMetrics) {
+      this.berries = [];
+      this.chocolateShards = [];
+      this.macarons = [];
+      this.glazeRipples = [];
+      return;
+    }
+
+    const { topWidth, topHeight } = this.cakeMetrics;
+    const radiusX = topWidth / 2;
+    const baseRadiusFactor = 0.4;
+
+    const berryCount = 9;
+    this.berries = Array.from({ length: berryCount }, (_, index) => {
+      const angle = (index / berryCount) * Math.PI * 2 + Math.random() * 0.28;
+      const radial = baseRadiusFactor + Math.random() * 0.18;
+      const size = 9 + Math.random() * 3.5;
+      return {
+        angle,
+        radial,
+        size,
+        glossOffset: Math.random() * Math.PI * 2,
+        hueShift: -6 + Math.random() * 12,
+      };
+    });
+
+    const shardCount = 5;
+    this.chocolateShards = Array.from({ length: shardCount }, (_, index) => {
+      const angle = (index / shardCount) * Math.PI * 2 + Math.random() * 0.35;
+      const radial = 0.18 + Math.random() * 0.18;
+      const height = topHeight * (1.2 + Math.random() * 0.6);
+      const baseWidth = radiusX * (0.07 + Math.random() * 0.05);
+      return {
+        angle,
+        radial,
+        height,
+        baseWidth,
+        lean: -0.2 + Math.random() * 0.4,
+      };
+    });
+
+    const macaronCount = 2;
+    const macaronPalette = [
+      "#f2b7b1",
+      "#f6d7a4",
+      "#d2e2ff",
+      "#dbc0e6",
+      "#f0c8c0",
+    ];
+    this.macarons = Array.from({ length: macaronCount }, () => {
+      const angle = Math.random() * Math.PI * 2;
+      const radial = 0.18 + Math.random() * 0.16;
+      const width = radiusX * 0.3;
+      const height = width * 0.55;
+      return {
+        angle,
+        radial,
+        width,
+        height,
+        color:
+          macaronPalette[Math.floor(Math.random() * macaronPalette.length)],
+        tilt: -0.3 + Math.random() * 0.6,
+      };
+    });
+
+    const rippleCount = 4;
+    this.glazeRipples = Array.from({ length: rippleCount }, (_, index) => ({
+      radius: radiusX * (0.45 - index * 0.07),
+      thickness: 1.6 - index * 0.22,
+      opacity: 0.12 - index * 0.02,
+    }));
+  }
+
   createConfettiParticle(progress = Math.random()) {
-    const palette = ["#ff8dc7", "#ffda74", "#8be7ff", "#c7a0ff", "#ff9f9f", "#8cf8b9"];
+    const palette = [
+      "#ff8dc7",
+      "#ffda74",
+      "#8be7ff",
+      "#c7a0ff",
+      "#ff9f9f",
+      "#8cf8b9",
+    ];
     return {
       x: Math.random() * this.width,
       y: progress * (this.height + 240) - 120,
@@ -421,7 +565,10 @@ class BirthdayCake {
       this.centerY,
       Math.max(this.width, this.height) * 0.75
     );
-    glowGradient.addColorStop(0, `rgba(255, 185, 240, ${0.18 + this.glowPulse.strength * 0.22})`);
+    glowGradient.addColorStop(
+      0,
+      `rgba(255, 185, 240, ${0.18 + this.glowPulse.strength * 0.22})`
+    );
     glowGradient.addColorStop(1, "rgba(18, 4, 19, 0.1)");
     this.ctx.fillStyle = glowGradient;
     this.ctx.fillRect(0, 0, this.width, this.height);
@@ -434,11 +581,21 @@ class BirthdayCake {
       this.ctx.save();
       this.ctx.translate(piece.x, piece.y);
       this.ctx.rotate(piece.rotation);
-      const gradient = this.ctx.createLinearGradient(0, -piece.size, 0, piece.size);
+      const gradient = this.ctx.createLinearGradient(
+        0,
+        -piece.size,
+        0,
+        piece.size
+      );
       gradient.addColorStop(0, "rgba(255, 255, 255, 0.85)");
       gradient.addColorStop(1, piece.color);
       this.ctx.fillStyle = gradient;
-      this.ctx.fillRect(-piece.size / 2, -piece.size, piece.size, piece.size * 1.8);
+      this.ctx.fillRect(
+        -piece.size / 2,
+        -piece.size,
+        piece.size,
+        piece.size * 1.8
+      );
       this.ctx.restore();
     });
     this.ctx.restore();
@@ -449,7 +606,8 @@ class BirthdayCake {
     this.ctx.save();
     this.ctx.globalCompositeOperation = "lighter";
     this.sparkles.forEach((sparkle) => {
-      const progress = Math.sin(this.time * 0.003 + sparkle.twinkleOffset) * 0.5 + 0.5;
+      const progress =
+        Math.sin(this.time * 0.003 + sparkle.twinkleOffset) * 0.5 + 0.5;
       const size = sparkle.size * (0.7 + progress * 0.8);
       const x = this.centerX + Math.cos(sparkle.angle) * sparkle.radius;
       const y =
@@ -483,7 +641,8 @@ class BirthdayCake {
       this.ctx.save();
       this.ctx.translate(x, y);
       const pulse =
-        0.6 + Math.sin(this.time * 0.003 + orbiter.angle * 3 + orbiter.wobble) * 0.25;
+        0.6 +
+        Math.sin(this.time * 0.003 + orbiter.angle * 3 + orbiter.wobble) * 0.25;
       this.ctx.scale(pulse, pulse);
       this.drawHeartShape(0, 0, orbiter.size, orbiter.color);
       this.ctx.restore();
@@ -498,100 +657,597 @@ class BirthdayCake {
     this.ctx.fillStyle = color;
     this.ctx.beginPath();
     this.ctx.moveTo(0, 0);
-    this.ctx.bezierCurveTo(-size * 0.5, -size * 0.65, -size, -size * 0.05, 0, size);
+    this.ctx.bezierCurveTo(
+      -size * 0.5,
+      -size * 0.65,
+      -size,
+      -size * 0.05,
+      0,
+      size
+    );
     this.ctx.bezierCurveTo(size, -size * 0.05, size * 0.5, -size * 0.65, 0, 0);
     this.ctx.closePath();
     this.ctx.fill();
     this.ctx.restore();
   }
 
+  drawServingPlate(baseWidth, baseHeight) {
+    this.ctx.save();
+    this.ctx.translate(this.centerX, this.centerY + baseHeight * 1.05);
+
+    const plateWidth = baseWidth * 1.42;
+    const plateHeight = baseWidth * 0.2;
+
+    const shadowGradient = this.ctx.createRadialGradient(
+      0,
+      plateHeight * 0.15,
+      plateWidth * 0.15,
+      0,
+      plateHeight * 0.25,
+      plateWidth * 0.82
+    );
+    shadowGradient.addColorStop(0, "rgba(0, 0, 0, 0.24)");
+    shadowGradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+
+    this.ctx.fillStyle = shadowGradient;
+    this.ctx.beginPath();
+    this.ctx.ellipse(
+      0,
+      plateHeight * 0.45,
+      plateWidth * 0.78,
+      plateHeight * 0.48,
+      0,
+      0,
+      Math.PI * 2
+    );
+    this.ctx.fill();
+
+    const plateGradient = this.ctx.createLinearGradient(
+      -plateWidth,
+      0,
+      plateWidth,
+      0
+    );
+    plateGradient.addColorStop(0, "rgba(255, 255, 255, 0.2)");
+    plateGradient.addColorStop(0.5, "rgba(244, 238, 232, 0.92)");
+    plateGradient.addColorStop(1, "rgba(210, 204, 198, 0.6)");
+
+    this.ctx.fillStyle = plateGradient;
+    this.ctx.beginPath();
+    this.ctx.ellipse(0, 0, plateWidth, plateHeight, 0, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    const highlight = this.ctx.createRadialGradient(
+      -plateWidth * 0.18,
+      -plateHeight * 0.3,
+      plateWidth * 0.08,
+      0,
+      0,
+      plateWidth * 0.7
+    );
+    highlight.addColorStop(0, "rgba(255, 255, 255, 0.45)");
+    highlight.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+    this.ctx.fillStyle = highlight;
+    this.ctx.beginPath();
+    this.ctx.ellipse(
+      0,
+      -plateHeight * 0.05,
+      plateWidth * 0.82,
+      plateHeight * 0.62,
+      0,
+      0,
+      Math.PI * 2
+    );
+    this.ctx.fill();
+
+    this.ctx.restore();
+  }
+
+  drawLayerShadow(upperLayer, lowerLayer) {
+    if (!upperLayer || !lowerLayer) {
+      return;
+    }
+
+    const lowerRadiusX = lowerLayer.width / 2;
+    const lowerRadiusY = lowerLayer.width / 6;
+    const lowerTopY = lowerLayer.y - lowerLayer.height;
+    const contactY = lowerTopY + lowerRadiusY * 0.45;
+
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.ellipse(
+      0,
+      contactY + lowerRadiusY * 0.35,
+      lowerRadiusX * 0.75,
+      lowerRadiusY * 0.5,
+      0,
+      0,
+      Math.PI * 2
+    );
+    const gradient = this.ctx.createRadialGradient(
+      0,
+      contactY,
+      lowerRadiusX * 0.1,
+      0,
+      contactY + lowerRadiusY * 0.6,
+      lowerRadiusX * 0.78
+    );
+    gradient.addColorStop(0, "rgba(0, 0, 0, 0.18)");
+    gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+    this.ctx.fillStyle = gradient;
+    this.ctx.fill();
+    this.ctx.restore();
+  }
+
+  drawChocolateTop(layer) {
+    const { width, height, y, colors } = layer;
+    const radiusX = width / 2;
+    const radiusY = width / 6;
+    const topY = y - height;
+    const sideBottom = y + radiusY * 0.35;
+
+    this.ctx.save();
+
+    const sideGradient = this.ctx.createLinearGradient(0, topY, 0, sideBottom);
+    sideGradient.addColorStop(0, colors.topLight ?? "#6a3e24");
+    sideGradient.addColorStop(0.6, colors.topMid ?? "#4c2d1b");
+    sideGradient.addColorStop(1, colors.sideDark ?? "#2a170d");
+
+    this.ctx.beginPath();
+    this.ctx.moveTo(-radiusX, topY);
+    this.ctx.lineTo(-radiusX, y);
+    this.ctx.ellipse(0, y, radiusX, radiusY * 0.95, 0, Math.PI, 0);
+    this.ctx.lineTo(radiusX, topY);
+    this.ctx.ellipse(0, topY, radiusX, radiusY * 0.9, 0, 0, Math.PI, false);
+    this.ctx.closePath();
+    this.ctx.fillStyle = sideGradient;
+    this.ctx.fill();
+
+    const rimGradient = this.ctx.createLinearGradient(
+      0,
+      topY - radiusY * 0.35,
+      0,
+      y
+    );
+    rimGradient.addColorStop(0, "rgba(255, 255, 255, 0.18)");
+    rimGradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+    this.ctx.fillStyle = rimGradient;
+    this.ctx.fill();
+
+    const topGradient = this.ctx.createRadialGradient(
+      -radiusX * 0.18,
+      topY - radiusY * 0.6,
+      radiusX * 0.06,
+      0,
+      topY,
+      radiusX * 0.92
+    );
+    topGradient.addColorStop(0, colors.topLight ?? "#6a3e24");
+    topGradient.addColorStop(0.5, colors.topMid ?? "#4c2d1b");
+    topGradient.addColorStop(1, colors.topDark ?? "#3b2215");
+
+    this.ctx.beginPath();
+    this.ctx.ellipse(0, topY, radiusX, radiusY * 0.88, 0, 0, Math.PI * 2);
+    this.ctx.fillStyle = topGradient;
+    this.ctx.fill();
+
+    this.ctx.globalAlpha = 0.35;
+    this.ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+    this.ctx.lineWidth = Math.max(1, radiusX * 0.04);
+    this.ctx.beginPath();
+    this.ctx.arc(
+      0,
+      topY - radiusY * 0.15,
+      radiusX * 0.65,
+      Math.PI * 1.1,
+      Math.PI * 1.9
+    );
+    this.ctx.stroke();
+
+    this.ctx.restore();
+  }
+
+  drawIcingDripsForLayer(layerKey, layer, color, highlightColor) {
+    const drips = this.icingDrips[layerKey];
+    if (!drips || drips.length === 0) {
+      return;
+    }
+
+    const { width, height, y } = layer;
+    const radiusX = width / 2;
+    const radiusY = width / 6;
+    const topY = y - height;
+    const startY = topY + radiusY * 0.55;
+    const maxDepth = height * 0.85;
+
+    this.ctx.save();
+    drips.forEach((drip) => {
+      const x = -radiusX + drip.position * radiusX * 2;
+      const length = Math.min(drip.depth, maxDepth);
+      const endY = startY + length;
+      const controlY = startY + length * drip.curvature;
+
+      const dripGradient = this.ctx.createLinearGradient(0, startY, 0, endY);
+      dripGradient.addColorStop(0, highlightColor);
+      dripGradient.addColorStop(1, color);
+
+      this.ctx.fillStyle = dripGradient;
+      this.ctx.beginPath();
+      this.ctx.moveTo(x - drip.width * 0.5, startY);
+      this.ctx.quadraticCurveTo(x, controlY, x, endY);
+      this.ctx.quadraticCurveTo(
+        x,
+        endY + drip.width * 0.4,
+        x + drip.width * 0.5,
+        endY - drip.width * 0.15
+      );
+      this.ctx.quadraticCurveTo(
+        x + drip.width,
+        controlY,
+        x + drip.width * 0.5,
+        startY
+      );
+      this.ctx.closePath();
+      this.ctx.fill();
+
+      // Soft highlight along the drip
+      this.ctx.save();
+      this.ctx.globalAlpha = 0.32;
+      this.ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+      this.ctx.lineWidth = Math.max(1, drip.width * 0.15);
+      this.ctx.beginPath();
+      this.ctx.moveTo(x + drip.width * 0.15, startY + drip.width * 0.3);
+      this.ctx.quadraticCurveTo(
+        x + drip.width * 0.1,
+        controlY,
+        x + drip.width * 0.2,
+        endY - drip.width * 0.4
+      );
+      this.ctx.stroke();
+      this.ctx.restore();
+    });
+    this.ctx.restore();
+  }
+
+  drawTopGlaze(layer) {
+    if (!this.glazeRipples.length) {
+      return;
+    }
+
+    const { width, height, y } = layer;
+    const radiusX = width / 2;
+    const radiusY = width / 6;
+    const topY = y - height;
+
+    this.ctx.save();
+    this.ctx.translate(0, topY);
+    this.ctx.beginPath();
+    this.ctx.ellipse(0, 0, radiusX, radiusY, 0, 0, Math.PI * 2);
+    const glazeGradient = this.ctx.createRadialGradient(
+      -radiusX * 0.2,
+      -radiusY * 0.4,
+      radiusX * 0.1,
+      0,
+      0,
+      radiusX * 0.85
+    );
+    glazeGradient.addColorStop(0, "rgba(255, 255, 255, 0.7)");
+    glazeGradient.addColorStop(0.6, "rgba(255, 255, 255, 0.12)");
+    glazeGradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+    this.ctx.fillStyle = glazeGradient;
+    this.ctx.fill();
+
+    this.ctx.globalCompositeOperation = "lighter";
+    this.glazeRipples.forEach((ripple) => {
+      this.ctx.globalAlpha = ripple.opacity;
+      this.ctx.lineWidth = ripple.thickness;
+      this.ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+      this.ctx.beginPath();
+      this.ctx.ellipse(
+        0,
+        0,
+        ripple.radius,
+        ripple.radius * 0.32,
+        0,
+        0,
+        Math.PI * 2
+      );
+      this.ctx.stroke();
+    });
+
+    this.ctx.restore();
+    this.ctx.globalCompositeOperation = "source-over";
+  }
+
+  drawBerries(topLayer) {
+    if (!this.berries.length) {
+      return;
+    }
+    const { width, height, y } = topLayer;
+    const radiusX = width / 2;
+    const radiusY = width / 6;
+    const topY = y - height;
+
+    this.ctx.save();
+    this.berries.forEach((berry) => {
+      const radialX = radiusX * berry.radial;
+      const radialY = radiusY * berry.radial;
+      const x = Math.cos(berry.angle) * radialX;
+      const yOffset = Math.sin(berry.angle) * radialY;
+      const baseY = topY + yOffset;
+
+      const berryGradient = this.ctx.createRadialGradient(
+        x - berry.size * 0.2,
+        baseY - berry.size * 0.4,
+        berry.size * 0.1,
+        x,
+        baseY,
+        berry.size
+      );
+      berryGradient.addColorStop(
+        0,
+        `hsla(${350 + berry.hueShift}, 88%, 66%, 1)`
+      );
+      berryGradient.addColorStop(
+        1,
+        `hsla(${344 + berry.hueShift}, 80%, 40%, 1)`
+      );
+
+      this.ctx.beginPath();
+      this.ctx.ellipse(
+        x,
+        baseY,
+        berry.size,
+        berry.size * 0.75,
+        0,
+        0,
+        Math.PI * 2
+      );
+      this.ctx.fillStyle = berryGradient;
+      this.ctx.fill();
+
+      this.ctx.globalAlpha = 0.4;
+      this.ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+      this.ctx.beginPath();
+      this.ctx.ellipse(
+        x - berry.size * 0.35,
+        baseY - berry.size * 0.35,
+        berry.size * 0.28,
+        berry.size * 0.2,
+        0,
+        0,
+        Math.PI * 2
+      );
+      this.ctx.fill();
+      this.ctx.globalAlpha = 1;
+
+      // tiny seeds/texture
+      this.ctx.fillStyle = "rgba(255, 230, 240, 0.55)";
+      const seedCount = 4;
+      for (let i = 0; i < seedCount; i += 1) {
+        const seedAngle = berry.glossOffset + (i / seedCount) * Math.PI * 2;
+        const seedX = x + Math.cos(seedAngle) * berry.size * 0.32;
+        const seedY = baseY + Math.sin(seedAngle) * berry.size * 0.28;
+        this.ctx.beginPath();
+        this.ctx.ellipse(
+          seedX,
+          seedY,
+          berry.size * 0.06,
+          berry.size * 0.045,
+          0,
+          0,
+          Math.PI * 2
+        );
+        this.ctx.fill();
+      }
+    });
+    this.ctx.restore();
+  }
+
+  drawChocolateShards(topLayer) {
+    if (!this.chocolateShards.length) {
+      return;
+    }
+
+    const { width, height, y } = topLayer;
+    const radiusX = width / 2;
+    const radiusY = width / 6;
+    const topY = y - height;
+
+    this.ctx.save();
+    this.ctx.globalCompositeOperation = "source-over";
+    this.chocolateShards.forEach((shard) => {
+      const radialX = radiusX * shard.radial;
+      const radialY = radiusY * shard.radial;
+      const baseX = Math.cos(shard.angle) * radialX;
+      const baseY = topY + Math.sin(shard.angle) * radialY;
+
+      const tipX = baseX + shard.baseWidth * shard.lean;
+      const tipY = baseY - shard.height;
+
+      const gradient = this.ctx.createLinearGradient(baseX, baseY, tipX, tipY);
+      gradient.addColorStop(0, "#6b4224");
+      gradient.addColorStop(0.55, "#8f5b33");
+      gradient.addColorStop(1, "#3d2412");
+
+      this.ctx.beginPath();
+      this.ctx.moveTo(
+        baseX - shard.baseWidth * 0.5,
+        baseY + shard.baseWidth * 0.15
+      );
+      this.ctx.lineTo(
+        baseX + shard.baseWidth * 0.5,
+        baseY + shard.baseWidth * 0.15
+      );
+      this.ctx.lineTo(tipX, tipY);
+      this.ctx.closePath();
+      this.ctx.fillStyle = gradient;
+      this.ctx.fill();
+
+      this.ctx.strokeStyle = "rgba(255, 240, 210, 0.12)";
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.moveTo(baseX, baseY + shard.baseWidth * 0.1);
+      this.ctx.lineTo(tipX, tipY);
+      this.ctx.stroke();
+    });
+    this.ctx.restore();
+  }
+
+  drawMacarons(topLayer) {
+    if (!this.macarons.length) {
+      return;
+    }
+
+    const { width, height, y } = topLayer;
+    const radiusX = width / 2;
+    const radiusY = width / 6;
+    const topY = y - height;
+
+    this.ctx.save();
+    this.macarons.forEach((macaron) => {
+      const x = Math.cos(macaron.angle) * radiusX * macaron.radial;
+      const yOffset = Math.sin(macaron.angle) * radiusY * macaron.radial;
+      const baseY = topY + yOffset;
+
+      this.ctx.save();
+      this.ctx.translate(x, baseY);
+      this.ctx.rotate(macaron.tilt);
+
+      const shellGradient = this.ctx.createLinearGradient(
+        -macaron.width,
+        -macaron.height * 0.5,
+        macaron.width,
+        macaron.height
+      );
+      shellGradient.addColorStop(0, `${macaron.color}33`);
+      shellGradient.addColorStop(0.5, macaron.color);
+      shellGradient.addColorStop(1, "#ffffff");
+
+      // bottom shell
+      this.ctx.fillStyle = shellGradient;
+      this.ctx.beginPath();
+      this.ctx.ellipse(
+        0,
+        macaron.height * 0.2,
+        macaron.width,
+        macaron.height * 0.45,
+        0,
+        0,
+        Math.PI * 2
+      );
+      this.ctx.fill();
+
+      // filling
+      this.ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+      this.ctx.beginPath();
+      this.ctx.ellipse(
+        0,
+        0,
+        macaron.width * 0.92,
+        macaron.height * 0.28,
+        0,
+        0,
+        Math.PI * 2
+      );
+      this.ctx.fill();
+
+      // top shell
+      const topGradient = this.ctx.createLinearGradient(
+        -macaron.width,
+        -macaron.height,
+        macaron.width,
+        macaron.height * 0.2
+      );
+      topGradient.addColorStop(0, "#ffffff");
+      topGradient.addColorStop(0.35, `${macaron.color}dd`);
+      topGradient.addColorStop(1, macaron.color);
+
+      this.ctx.fillStyle = topGradient;
+      this.ctx.beginPath();
+      this.ctx.ellipse(
+        0,
+        -macaron.height * 0.35,
+        macaron.width,
+        macaron.height * 0.48,
+        0,
+        0,
+        Math.PI * 2
+      );
+      this.ctx.fill();
+
+      this.ctx.restore();
+    });
+    this.ctx.restore();
+  }
+
   drawCake() {
-    const { baseWidth, baseHeight, middleWidth, middleHeight, topWidth, topHeight, spacing } =
-      this.cakeMetrics;
+    if (!this.cakeMetrics) {
+      return;
+    }
+
+    const { baseWidth, baseHeight, topWidth, topHeight } = this.cakeMetrics;
+
+    this.drawServingPlate(baseWidth, baseHeight);
 
     this.ctx.save();
     this.ctx.translate(this.centerX, this.centerY);
     this.ctx.scale(this.cakePulse.scale, this.cakePulse.scale);
 
-    this.ctx.save();
-    this.ctx.beginPath();
-    this.ctx.ellipse(0, baseHeight * 0.9, baseWidth * 0.7, baseWidth * 0.22, 0, 0, Math.PI * 2);
-    const shadow = this.ctx.createRadialGradient(
-      0,
-      baseHeight * 0.9,
-      baseWidth * 0.1,
-      0,
-      baseHeight * 0.9,
-      baseWidth * 0.85
+    const baseLayer = {
+      width: baseWidth,
+      height: baseHeight,
+      y: 0,
+      colors: {
+        topLight: "#f3e2d0",
+        top: "#dfc5a4",
+        topShadow: "#c69e73",
+        sideLight: "#bb8d60",
+        sideDark: "#845a37",
+      },
+    };
+
+    this.drawCakeLayer(baseLayer);
+    this.drawIcingDripsForLayer(
+      "base",
+      baseLayer,
+      "rgba(250, 232, 204, 0.92)",
+      "rgba(255, 255, 255, 0.96)"
     );
-    shadow.addColorStop(0, "rgba(0, 0, 0, 0.32)");
-    shadow.addColorStop(1, "rgba(0, 0, 0, 0)");
-    this.ctx.fillStyle = shadow;
-    this.ctx.fill();
-    this.ctx.restore();
+    this.drawIcing(baseLayer, 26, 7);
 
-    this.ctx.shadowColor = "rgba(255, 120, 220, 0.35)";
-    this.ctx.shadowBlur = 24;
-
-    const layers = [
-      {
-        width: baseWidth,
-        height: baseHeight,
-        y: 0,
-        colors: {
-          topLight: "#ffeafc",
-          top: "#ffd3f4",
-          topShadow: "#f7a8d6",
-          sideLight: "#ffbadf",
-          sideDark: "#ff6dba",
-        },
+    const chocolateLayer = {
+      width: topWidth,
+      height: topHeight * 0.58,
+      y: -baseHeight + topHeight * 0.3,
+      colors: {
+        topDark: "#3b2215",
+        topMid: "#4c2d1b",
+        topLight: "#6a3e24",
+        sideDark: "#2a170d",
+        sideLight: "#4a2818",
       },
-      {
-        width: middleWidth,
-        height: middleHeight,
-        y: -baseHeight + spacing,
-        colors: {
-          topLight: "#fff2e9",
-          top: "#ffdcd4",
-          topShadow: "#ffb4a4",
-          sideLight: "#ffc2b0",
-          sideDark: "#ff8c7f",
-        },
-      },
-      {
-        width: topWidth,
-        height: topHeight,
-        y: -baseHeight - middleHeight + spacing * 2,
-        colors: {
-          topLight: "#e8f7ff",
-          top: "#d6edff",
-          topShadow: "#9dd1ff",
-          sideLight: "#bfe1ff",
-          sideDark: "#6fb6ff",
-        },
-      },
-    ];
+    };
 
-    layers.forEach((layer, index) => {
-      this.drawCakeLayer(layer);
-      if (index === 0) {
-        this.drawIcing(layer, 18, 8);
-      } else if (index === 1) {
-        this.drawIcing(layer, 14, 6);
-      } else {
-        this.drawIcing(layer, 10, 5);
-      }
-    });
-
-    this.ctx.shadowBlur = 0;
-
-    this.drawSprinkles(layers[2]);
-    this.drawCandles(layers[2]);
+    this.drawChocolateTop(chocolateLayer);
+    this.drawIcingDripsForLayer(
+      "chocolate",
+      chocolateLayer,
+      "rgba(58, 33, 20, 0.92)",
+      "rgba(153, 99, 60, 0.85)"
+    );
+    this.drawTopGlaze(chocolateLayer);
+    this.drawChocolateShards(chocolateLayer);
+    this.drawMacarons(chocolateLayer);
+    this.drawBerries(chocolateLayer);
+    this.drawSprinkles(chocolateLayer);
+    this.drawCandles(chocolateLayer);
 
     this.ctx.restore();
   }
 
-  drawCakeLayer(layer) {
+  drawCakeLayer(layer, layerIndex = 0) {
     const { width, height, y, colors } = layer;
     const radiusX = width / 2;
     const radiusY = width / 6;
@@ -599,6 +1255,7 @@ class BirthdayCake {
 
     const sideGradient = this.ctx.createLinearGradient(0, topY, 0, y + radiusY);
     sideGradient.addColorStop(0, colors.sideLight);
+    sideGradient.addColorStop(0.5, colors.sideLight);
     sideGradient.addColorStop(1, colors.sideDark);
 
     this.ctx.save();
@@ -611,11 +1268,46 @@ class BirthdayCake {
     this.ctx.closePath();
     this.ctx.fillStyle = sideGradient;
     this.ctx.fill();
-    this.ctx.lineWidth = 1.4;
-    this.ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+
+    const sheenGradient = this.ctx.createLinearGradient(
+      -radiusX,
+      y,
+      radiusX,
+      y
+    );
+    sheenGradient.addColorStop(0, "rgba(255, 255, 255, 0.04)");
+    sheenGradient.addColorStop(0.45, "rgba(255, 255, 255, 0.16)");
+    sheenGradient.addColorStop(0.55, "rgba(255, 255, 255, 0.14)");
+    sheenGradient.addColorStop(1, "rgba(255, 255, 255, 0.04)");
+    this.ctx.globalAlpha = 0.22;
+    this.ctx.fillStyle = sheenGradient;
+    this.ctx.fill();
+    this.ctx.globalAlpha = 1;
+
+    const rimGradient = this.ctx.createLinearGradient(
+      0,
+      y - height * 0.25,
+      0,
+      y + radiusY
+    );
+    rimGradient.addColorStop(0, "rgba(255, 255, 255, 0.22)");
+    rimGradient.addColorStop(0.65, "rgba(255, 255, 255, 0)");
+    rimGradient.addColorStop(1, "rgba(0, 0, 0, 0.08)");
+    this.ctx.fillStyle = rimGradient;
+    this.ctx.fill();
+
+    this.ctx.lineWidth = 1.2;
+    this.ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
     this.ctx.stroke();
 
-    const topGradient = this.ctx.createLinearGradient(-radiusX, topY - radiusY, radiusX, topY);
+    const topGradient = this.ctx.createRadialGradient(
+      -radiusX * 0.2,
+      topY - radiusY * 0.6,
+      radiusX * 0.1,
+      0,
+      topY,
+      radiusX
+    );
     topGradient.addColorStop(0, colors.topLight);
     topGradient.addColorStop(0.5, colors.top);
     topGradient.addColorStop(1, colors.topShadow);
@@ -623,6 +1315,10 @@ class BirthdayCake {
     this.ctx.ellipse(0, topY, radiusX, radiusY, 0, 0, Math.PI * 2);
     this.ctx.fillStyle = topGradient;
     this.ctx.fill();
+
+    this.ctx.strokeStyle = "rgba(255, 255, 255, 0.32)";
+    this.ctx.lineWidth = 0.9;
+    this.ctx.stroke();
 
     this.ctx.restore();
   }
@@ -635,14 +1331,23 @@ class BirthdayCake {
     const segmentWidth = (radiusX * 2) / segments;
 
     this.ctx.save();
-    this.ctx.strokeStyle = "rgba(255, 255, 255, 0.82)";
-    this.ctx.lineWidth = 2;
+    const icingGradient = this.ctx.createLinearGradient(
+      -radiusX,
+      topY + radiusY,
+      radiusX,
+      topY + radiusY
+    );
+    icingGradient.addColorStop(0, "rgba(255, 255, 255, 0.65)");
+    icingGradient.addColorStop(0.5, "rgba(255, 255, 255, 0.9)");
+    icingGradient.addColorStop(1, "rgba(255, 255, 255, 0.65)");
+    this.ctx.strokeStyle = icingGradient;
+    this.ctx.lineWidth = 1.8;
     this.ctx.lineJoin = "round";
     this.ctx.beginPath();
     for (let i = 0; i <= segments; i += 1) {
       const progress = i / segments;
       const angle = progress * Math.PI * 2;
-      const wave = Math.sin(angle * 2 + this.time * 0.004) * amplitude;
+      const wave = Math.sin(angle + this.time * 0.003) * amplitude;
       const x = -radiusX + segmentWidth * i;
       const yPos = topY + radiusY + wave;
       if (i === 0) {
@@ -673,7 +1378,12 @@ class BirthdayCake {
       this.ctx.translate(x, topY + yOffset + wobble);
       this.ctx.rotate(sprinkle.angle);
       this.ctx.fillStyle = sprinkleColors[sprinkle.colorIndex];
-      this.ctx.fillRect(-sprinkle.size / 2, -sprinkle.size / 2, sprinkle.size, sprinkle.size * 0.6);
+      this.ctx.fillRect(
+        -sprinkle.size / 2,
+        -sprinkle.size / 2,
+        sprinkle.size,
+        sprinkle.size * 0.6
+      );
       this.ctx.restore();
     });
     this.ctx.restore();
@@ -692,7 +1402,8 @@ class BirthdayCake {
       const radius = radiusX * 0.72;
       const x = Math.cos(angle) * radius;
       const yOffset = Math.sin(angle) * radiusY * 0.6;
-      const flicker = 1 + Math.sin(this.time * 0.005 + this.candleFlickerSeeds[i]) * 0.15;
+      const flicker =
+        1 + Math.sin(this.time * 0.005 + this.candleFlickerSeeds[i]) * 0.15;
       const candleHeight = height * 0.9;
       const candleWidth = width * 0.05;
 
@@ -700,7 +1411,12 @@ class BirthdayCake {
       this.ctx.translate(x, topY + yOffset - candleHeight);
       this.ctx.rotate(Math.sin(this.time * 0.001 + angle) * 0.02);
 
-      const candleGradient = this.ctx.createLinearGradient(0, candleHeight, 0, 0);
+      const candleGradient = this.ctx.createLinearGradient(
+        0,
+        candleHeight,
+        0,
+        0
+      );
       const color = candleColors[i % candleColors.length];
       candleGradient.addColorStop(0, `${color}55`);
       candleGradient.addColorStop(0.5, color);
@@ -753,7 +1469,15 @@ class BirthdayCake {
       this.ctx.fill();
 
       this.ctx.beginPath();
-      this.ctx.ellipse(0, -flameHeight * 0.35, flameWidth * 1.6, flameHeight * 1.6, 0, 0, Math.PI * 2);
+      this.ctx.ellipse(
+        0,
+        -flameHeight * 0.35,
+        flameWidth * 1.6,
+        flameHeight * 1.6,
+        0,
+        0,
+        Math.PI * 2
+      );
       this.ctx.fillStyle = "rgba(255, 180, 90, 0.25)";
       this.ctx.fill();
 
@@ -1489,6 +2213,8 @@ function App() {
   const worldRef = useRef(null);
   const ringsRef = useRef(null);
   const audioRef = useRef(null);
+  const audioReadyRef = useRef(false);
+  const audioFadeTweenRef = useRef(null);
   const secondCanvasRef = useRef(null);
   const secondWorldRef = useRef(null);
   const [promptVisible, setPromptVisible] = useState(false);
@@ -1496,17 +2222,148 @@ function App() {
   const [promptDismissed, setPromptDismissed] = useState(false);
   // Popup is now always centered, no need for positioning state
 
+  const { celebrationName, celebrationDate } = useMemo(() => {
+    const fallbackName = "Phi";
+    const fallbackDate = "";
+    if (typeof window === "undefined") {
+      return { celebrationName: fallbackName, celebrationDate: fallbackDate };
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const rawName = params.get("name") ?? "";
+    const sanitizedName = rawName.trim().replace(/\s+/g, " ");
+    const name = sanitizedName || fallbackName;
+
+    const rawDate = params.get("date") ?? "";
+    const trimmedDate = rawDate.trim();
+    let formattedDate = trimmedDate;
+
+    const normalized = trimmedDate.replace(/\./g, "-").replace(/\s+/g, "-");
+    const match = normalized.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
+
+    if (match) {
+      const [, dayStr, monthStr, yearStr] = match;
+      const day = parseInt(dayStr, 10);
+      const month = parseInt(monthStr, 10);
+      const year = parseInt(yearStr.padStart(4, "0"), 10);
+
+      if (
+        !Number.isNaN(day) &&
+        !Number.isNaN(month) &&
+        !Number.isNaN(year) &&
+        day >= 1 &&
+        day <= 31 &&
+        month >= 1 &&
+        month <= 12
+      ) {
+        const isoString = `${String(year).padStart(4, "0")}-${String(
+          month
+        ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const parsedDate = new Date(isoString);
+
+        if (!Number.isNaN(parsedDate.getTime())) {
+          formattedDate = new Intl.DateTimeFormat("vi-VN", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          }).format(parsedDate);
+        }
+      }
+    }
+
+    return {
+      celebrationName: name,
+      celebrationDate: formattedDate || fallbackDate,
+    };
+  }, []);
+
+  const dateRingSegment = celebrationDate ? `${celebrationDate} • ` : "";
+  const celebrationDateNote = celebrationDate ? ` (${celebrationDate})` : "";
+  const celebrationDayLabel = celebrationDate || "hôm nay";
+  const heroHeadline = `Chúc mừng sinh nhật ${celebrationName}!`;
+
   const playBackgroundAudio = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) {
       return;
     }
 
+    audio.loop = true;
+    audio.autoplay = true;
+
+    if (!audioReadyRef.current) {
+      audio.volume = 0;
+      audio.muted = true;
+    }
+
     const playPromise = audio.play();
-    if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => {});
+    if (playPromise && typeof playPromise.then === "function") {
+      playPromise
+        .then(() => {
+          if (!audioReadyRef.current) {
+            audioReadyRef.current = true;
+            audio.muted = false;
+            if (audioFadeTweenRef.current) {
+              audioFadeTweenRef.current.kill();
+            }
+            audioFadeTweenRef.current = gsap.to(audio, {
+              volume: TARGET_AUDIO_VOLUME,
+              duration: 2.4,
+              ease: "sine.inOut",
+              overwrite: true,
+              onComplete: () => {
+                audioFadeTweenRef.current = null;
+              },
+            });
+          } else if (audio.volume < TARGET_AUDIO_VOLUME) {
+            audio.volume = TARGET_AUDIO_VOLUME;
+          }
+        })
+        .catch(() => {});
+    } else if (!audioReadyRef.current) {
+      audioReadyRef.current = !audio.paused;
+      if (audioReadyRef.current) {
+        audio.muted = false;
+        audio.volume = TARGET_AUDIO_VOLUME;
+      }
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const attempt = () => {
+      playBackgroundAudio();
+    };
+
+    attempt();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        attempt();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    const retryTimer = window.setInterval(() => {
+      const audio = audioRef.current;
+      if (!audioReadyRef.current || (audio && audio.paused)) {
+        attempt();
+      }
+    }, 4000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.clearInterval(retryTimer);
+      if (audioFadeTweenRef.current) {
+        audioFadeTweenRef.current.kill();
+        audioFadeTweenRef.current = null;
+      }
+    };
+  }, [playBackgroundAudio]);
 
   const handleInteraction = useCallback(() => {
     playBackgroundAudio();
@@ -1646,8 +2503,13 @@ function App() {
       window.removeEventListener("resize", handleResize);
       detachAudioListener?.();
       if (audio) {
+        if (audioFadeTweenRef.current) {
+          audioFadeTweenRef.current.kill();
+          audioFadeTweenRef.current = null;
+        }
         audio.pause();
         audio.currentTime = 0;
+        audioReadyRef.current = false;
       }
       ringsRef.current?.clear();
       ringsRef.current = null;
@@ -1660,6 +2522,12 @@ function App() {
     <div className="App" onClick={handleInteraction}>
       <title>Hậu nhỏ làm cho bạn</title>
       <canvas className="webgl" ref={canvasRef} aria-hidden="true" />
+      <div className="h1text">
+        <span className="h1text-line">{heroHeadline}</span>
+        {celebrationDate && (
+          <span className="h1text-date">{celebrationDate}</span>
+        )}
+      </div>
       <div
         className="birthday-rings"
         ref={overlayRef}
@@ -1668,25 +2536,25 @@ function App() {
       >
         <div
           className="birthday-ring ring-outer"
-          data-text="Happy Birthday to Phi • Happy Birthday to Phi • Happy Birthday to Phi • "
+          data-text={`Happy Birthday to ${celebrationName} • Happy Birthday to ${celebrationName} • Happy Birthday to ${celebrationName} • `}
           data-speed="-7.5"
           data-spacing="1.08"
         />
         <div
           className="birthday-ring ring-middle"
-          data-text="Happy Birthday to Phi • Feliz Cumpleaños Phi • Joyeux Anniversaire Phi •"
+          data-text={`Happy Birthday to ${celebrationName} • Feliz Cumpleaños ${celebrationName} • Joyeux Anniversaire ${celebrationName} •`}
           data-speed="6.2"
           data-spacing="1.04"
         />
         <div
           className="birthday-ring ring-inner"
-          data-text="Happy Birthday to Phi • Chuc Mung Sinh Nhat Phi • Selamat Ulang Tahun Phi •"
+          data-text={`Happy Birthday to ${celebrationName} • Chuc Mung Sinh Nhat ${celebrationName} • Selamat Ulang Tahun ${celebrationName} •`}
           data-speed="-6.8"
           data-spacing="1"
         />
         <div
           className="birthday-ring ring-core"
-          data-text="Happy Birthday Phi • With Love •"
+          data-text={`Happy Birthday ${celebrationName} • ${dateRingSegment}With Love •`}
           data-speed="5.4"
           data-spacing="0.94"
         />
@@ -1726,7 +2594,7 @@ function App() {
             {promptStage === "ask" ? (
               <>
                 <p className="popup-title">
-                  Phi ơi 💖, muốn nghe thêm lời chúc nhỏ không?
+                  {`${celebrationName} ơi 💖, muốn nghe thêm lời chúc nhỏ không?`}
                 </p>
                 <p className="popup-subtitle">
                   Chỉ cần gật đầu là cả bầu trời thương gửi tới ngay nè!
@@ -1751,11 +2619,11 @@ function App() {
             ) : (
               <>
                 <p className="popup-title">
-                  Gửi Phi thêm thiệt nhiều thương 💝
+                  {`Gửi ${celebrationName} thêm thiệt nhiều thương 💝`}
                 </p>
                 <p className="popup-subtle">
-                  Chúc ngày hôm nay lung linh, đầy ắp tiếng cười và những điều
-                  ngọt ngào nhất!
+                  Chúc ngày {celebrationDayLabel} lung linh, đầy ắp tiếng cười
+                  và những điều ngọt ngào nhất!
                 </p>
                 <div className="popup-actions">
                   <button
@@ -1780,12 +2648,12 @@ function App() {
             <div className="celebration-text">
               <p className="celebration-title">
                 {celebrationType === "accept"
-                  ? "Yêu thương đang gửi tới Phi nè!"
+                  ? `Yêu thương đang gửi tới ${celebrationName} nè!`
                   : "Không được đâu người đẹp"}
               </p>
               <p className="celebration-subtitle">
                 {celebrationType === "accept"
-                  ? "Chúc Phi một ngày lung linh, ngập tràn điều nhiệm màu 💕"
+                  ? `Chúc ${celebrationName} một ngày lung linh, ngập tràn điều nhiệm màu 💕${celebrationDateNote}`
                   : "Bạn không được phép từ chối hehe 💖"}
               </p>
             </div>
@@ -1811,7 +2679,7 @@ function App() {
           <div
             style={{
               position: "fixed",
-              top: "50%",
+              top: "84%",
               left: "50%",
               transform: "translate(-50%, -50%)",
               zIndex: 250,
@@ -1821,9 +2689,27 @@ function App() {
               textShadow: "0 0 20px rgba(255, 153, 204, 0.8)",
               pointerEvents: "none",
               fontFamily: "Dancing Script, cursive",
+              textAlign: "center",
+              padding: "0.6rem 1.25rem",
+              background:
+                "linear-gradient(180deg, rgba(30, 10, 28, 0.55) 0%, rgba(30, 10, 28, 0.25) 100%)",
+              borderRadius: "32px",
+              backdropFilter: "blur(6px)",
+              maxWidth: "min(520px, 90vw)",
             }}
           >
-            Chúc mừng sinh nhật Phi! 🎂🎉
+            <div>{heroHeadline} 🎂🎉</div>
+            {celebrationDate && (
+              <div
+                style={{
+                  fontSize: "1.4rem",
+                  marginTop: "0.35rem",
+                  opacity: 0.9,
+                }}
+              >
+                {celebrationDate}
+              </div>
+            )}
           </div>
         </>
       )}
